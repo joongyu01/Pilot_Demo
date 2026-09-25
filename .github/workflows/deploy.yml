@@ -109,6 +109,7 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           node tests/e2e.mjs _site
+          DEMO_TEST_PREFIX=/ node tests/e2e.mjs _site
 
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

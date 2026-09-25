@@ -11,7 +11,7 @@ import { extname, join, normalize, resolve } from "node:path";
 import { chromium } from "playwright";
 
 const SITE = resolve(process.argv[2] || "_site");
-const PREFIX = "/Pilot_Demo/";
+const PREFIX = process.env.DEMO_TEST_PREFIX || "/Pilot_Demo/";
 const TYPES = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".mjs": "text/javascript",
   ".css": "text/css", ".json": "application/json", ".zip": "application/zip", ".svg": "image/svg+xml",

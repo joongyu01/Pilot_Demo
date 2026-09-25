@@ -1,6 +1,6 @@
 # Carrot Web Live Demo
 
-**[데모 열기 · Open the demo](https://www.joongyu.co.kr/Pilot_Demo/)**
+**[데모 열기 · Open the demo](https://demopilot.joongyu.co.kr/)**
 
 [ajouatom/openpilot](https://github.com/ajouatom/openpilot) `carrot-wip` 브랜치의 Carrot Web을 기기 없이 브라우저에서 실행하는 비공식 데모입니다.
 화면을 흉내 내 다시 만든 것이 아니라, **upstream 코드를 그대로** 돌립니다.
