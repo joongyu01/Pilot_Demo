@@ -184,7 +184,7 @@ def render_comment(preset: dict, report: dict, site: str) -> str:
     lines += [f"- {e}" for e in report["errors"]]
   else:
     lines = [
-      f"✅ **공개됐습니다.** 1~3분 뒤 [데모]({site})의 `DEMO` → **설정 불러오기(web)** 목록에 나타납니다.",
+      f"✅ **공개됐습니다.** 1~3분 뒤 [데모]({site}) 화면 맨 위 **설정 불러오기(web)** 목록에 나타납니다.",
       "",
       "| 항목 | 값 |", "|---|---|",
       f"| 닉네임 | {preset['nickname']} |",
@@ -216,9 +216,10 @@ def main() -> None:
   schema = load_json(args.site, "shared/schema.json")
   meta = load_json(args.site, "_demo/meta.json")
 
+  site = re.sub(r"^http://", "https://", args.site)  # Pages reports http even when HTTPS is enforced
   preset, report = build_preset(issue, schema, meta)
   with open(args.comment, "w", encoding="utf-8") as f:
-    f.write(render_comment(preset, report, args.site if args.site.startswith("http") else ""))
+    f.write(render_comment(preset, report, site if site.startswith("http") else ""))
 
   result = "invalid"
   if preset:
