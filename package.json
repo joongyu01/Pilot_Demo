@@ -1,0 +1,11 @@
+{
+  "name": "pilot-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "node tests/e2e.mjs _site"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

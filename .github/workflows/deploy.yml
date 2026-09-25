@@ -1,0 +1,153 @@
+name: Deploy live demo
+
+# Hourly: if ajouatom/openpilot carrot-wip has moved, rebuild the demo from the
+# new tip, test it in a real browser, and publish it. A failing build or test
+# leaves the previous good demo online.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "state/**"
+      - "**.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: ajouatom/openpilot
+  UPSTREAM_BRANCH: carrot-wip
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.cmp.outputs.build }}
+      upstream: ${{ steps.cmp.outputs.upstream }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: state
+      - id: cmp
+        run: |
+          upstream=$(git ls-remote "https://github.com/${UPSTREAM_REPO}.git" "refs/heads/${UPSTREAM_BRANCH}" | cut -f1)
+          deployed=$(jq -r '.commit // ""' state/upstream.json 2>/dev/null || true)
+          echo "upstream=${upstream}" >> "$GITHUB_OUTPUT"
+          echo "upstream ${upstream:0:8}, deployed ${deployed:0:8}"
+          if [ "${{ github.event_name }}" != "schedule" ] || [ "$upstream" != "$deployed" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      upstream: ${{ steps.fetch.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fetch upstream (only what the web and its server need)
+        id: fetch
+        run: |
+          git clone --filter=blob:none --no-checkout --depth 1 --branch "$UPSTREAM_BRANCH" \
+            "https://github.com/${UPSTREAM_REPO}.git" upstream
+          cd upstream
+          git sparse-checkout set --no-cone \
+            '/LICENSE' \
+            '/openpilot/__init__.py' \
+            '/openpilot/common/' \
+            '/openpilot/selfdrive/__init__.py' \
+            '/openpilot/selfdrive/carrot/' \
+            '/openpilot/selfdrive/carrot_settings.json' \
+            '/openpilot/selfdrive/ui/translations/' \
+            '/openpilot/selfdrive/assets/' \
+            '!/openpilot/selfdrive/assets/fonts/' \
+            '!/openpilot/selfdrive/assets/training/' \
+            '/opendbc_repo/opendbc/'
+          git checkout
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          {
+            echo "UPSTREAM_SHA=$(git rev-parse HEAD)"
+            echo "UPSTREAM_DATE=$(git log -1 --format=%cI)"
+            echo "UPSTREAM_SUBJECT=$(git log -1 --format=%s)"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Build Carrot Web (upstream build script)
+        working-directory: upstream/openpilot/selfdrive/carrot/web
+        run: npm ci --no-audit --no-fund && npm run build
+
+      - name: Assemble site
+        run: |
+          pip install --quiet aiohttp numpy pycapnp
+          python tools/build_site.py --upstream upstream --out _site
+        env:
+          DEMO_SHA: ${{ github.sha }}
+
+      - name: Backend checks (upstream server code, native)
+        run: python tools/smoke_backend.py _site/_demo/backend.zip
+
+      - name: Browser checks (Pyodide in Chromium)
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          node tests/e2e.mjs _site
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  record:
+    # Commit the deployed upstream commit. This is the bot's memory for the
+    # hourly check, and the commit keeps the schedule alive (GitHub pauses
+    # scheduled workflows in repositories without activity for 60 days).
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          sha="${{ needs.build.outputs.upstream }}"
+          prev=$(jq -r '.commit // ""' state/upstream.json 2>/dev/null || true)
+          [ "$sha" = "$prev" ] && { echo "unchanged"; exit 0; }
+          mkdir -p state
+          jq -n --arg commit "$sha" --arg repo "$UPSTREAM_REPO" --arg branch "$UPSTREAM_BRANCH" \
+                --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                '{repo: $repo, branch: $branch, commit: $commit, deployedAt: $at}' > state/upstream.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/upstream.json
+          git commit -m "Track ${UPSTREAM_BRANCH} ${sha:0:8}"
+          git push

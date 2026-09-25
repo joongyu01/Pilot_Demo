@@ -1,0 +1,52 @@
+/* Demo badge, layered over Carrot Web: a small pill at the top centre,
+   clear of the side/bottom nav and the page headers. */
+#carrotDemoBadge {
+  font: 500 13px/1.45 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  left: 50%;
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  transform: translateX(-50%);
+  z-index: 2147483000;
+}
+#carrotDemoBadge .cdb-pill {
+  background: #ff9f5a;
+  border: 0;
+  border-radius: 0 0 7px 7px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+  color: #1a1006;
+  cursor: pointer;
+  display: block;
+  font: 800 9px/1 system-ui, sans-serif;
+  letter-spacing: .1em;
+  opacity: .85;
+  padding: 3px 8px 4px;
+}
+#carrotDemoBadge .cdb-pill:hover { opacity: 1; }
+#carrotDemoBadge .cdb-panel {
+  background: #151c24;
+  border: 1px solid #2c3743;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .5);
+  color: #dfe6ee;
+  left: 50%;
+  top: 22px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 20px);
+  padding: 12px 14px;
+  position: absolute;
+  width: 300px;
+}
+#carrotDemoBadge .cdb-panel[hidden] { display: none; }
+#carrotDemoBadge p { margin: 6px 0 0; }
+#carrotDemoBadge .cdb-meta { color: #8d99a6; font-size: 12px; word-break: break-word; }
+#carrotDemoBadge a { color: #ffb884; }
+#carrotDemoBadge .cdb-actions { align-items: center; display: flex; gap: 12px; margin-top: 10px; }
+#carrotDemoBadge .cdb-actions button {
+  background: #2a3440;
+  border: 1px solid #3a4654;
+  border-radius: 8px;
+  color: #e8edf3;
+  cursor: pointer;
+  font: inherit;
+  padding: 5px 10px;
+}

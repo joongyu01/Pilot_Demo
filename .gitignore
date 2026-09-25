@@ -1,0 +1,6 @@
+/upstream/
+/_site/
+/.venv/
+node_modules/
+__pycache__/
+/ci-sim/

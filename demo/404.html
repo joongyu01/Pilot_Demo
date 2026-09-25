@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Carrot Web Live Demo</title>
+  <script>
+    // Carrot Web keeps one URL. Pages serves this file only under the project
+    // path (on github.io or a custom domain), so its first segment is the base.
+    location.replace("/" + (location.pathname.split("/")[1] || "") + "/");
+  </script>
+</head>
+<body></body>
+</html>
