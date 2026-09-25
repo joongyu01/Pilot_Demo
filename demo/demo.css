@@ -22,6 +22,8 @@
   padding: 3px 8px 4px;
 }
 #carrotDemoBadge .cdb-pill:hover { opacity: 1; }
+#carrotDemoBadge .cdb-tabs { display: flex; gap: 3px; }
+#carrotDemoBadge .cdb-pill--share { background: #2b3642; color: #ffc89e; letter-spacing: .02em; }
 #carrotDemoBadge .cdb-panel {
   background: #151c24;
   border: 1px solid #2c3743;
@@ -49,4 +51,81 @@
   cursor: pointer;
   font: inherit;
   padding: 5px 10px;
+}
+
+/* Shared settings modal (demo/share.js) */
+.cds-overlay {
+  align-items: center;
+  background: rgba(4, 7, 10, .72);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 16px;
+  position: fixed;
+  z-index: 2147483001;
+}
+.cds-modal {
+  background: #121920;
+  border: 1px solid #2c3743;
+  border-radius: 14px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, .6);
+  color: #e3e9ef;
+  display: flex;
+  flex-direction: column;
+  font: 500 14px/1.5 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  max-height: min(86vh, 760px);
+  max-width: 560px;
+  width: 100%;
+}
+.cds-head { align-items: center; border-bottom: 1px solid #243039; display: flex; justify-content: space-between; padding: 12px 16px; }
+.cds-head strong { font-size: 16px; }
+.cds-x { background: none; border: 0; color: #9aa6b2; cursor: pointer; font-size: 24px; line-height: 1; padding: 0 4px; }
+.cds-body { overflow: auto; padding: 14px 16px 16px; }
+.cds-body p { margin: 0 0 10px; }
+.cds-muted { color: #8d99a6; font-size: 12.5px; }
+.cds-error { color: #f2a7ad; }
+.cds-note { background: #18222b; border-radius: 8px; color: #b8c3ce; font-size: 12.5px; padding: 8px 10px; }
+.cds-filters { display: flex; gap: 8px; margin-bottom: 10px; }
+.cds-filters select, .cds-filters input, .cds-field input, .cds-field textarea, .cds-copy {
+  background: #0c1217;
+  border: 1px solid #2f3b47;
+  border-radius: 8px;
+  color: #e8edf3;
+  font: inherit;
+  min-width: 0;
+  padding: 7px 9px;
+}
+.cds-filters select { flex: 0 1 45%; }
+.cds-filters input { flex: 1; }
+.cds-list { display: flex; flex-direction: column; gap: 8px; }
+.cds-item { background: #172029; border: 1px solid #26313c; border-radius: 10px; display: flex; gap: 10px; justify-content: space-between; padding: 10px 12px; }
+.cds-item-main { min-width: 0; }
+.cds-date { color: #8d99a6; font-size: 12px; margin-left: 4px; }
+.cds-car { color: #ffc89e; font-size: 13px; }
+.cds-memo { color: #c6d0da; font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+.cds-item a, .cds-link { color: #ffb884; }
+.cds-link { background: none; border: 0; cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+.cds-item-actions { display: flex; flex-direction: column; flex-shrink: 0; gap: 6px; justify-content: center; }
+.cds-btn { background: #26313c; border: 1px solid #36434f; border-radius: 8px; color: #e8edf3; cursor: pointer; font: inherit; font-size: 13px; padding: 6px 12px; white-space: nowrap; }
+.cds-btn:disabled { cursor: default; opacity: .45; }
+.cds-primary { background: #ff9f5a; border-color: #ff9f5a; color: #1a1006; font-weight: 700; }
+.cds-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.cds-foot { color: #8d99a6; font-size: 12.5px; margin-top: 12px !important; }
+.cds-sum { color: #ffc89e; margin-bottom: 6px; }
+.cds-diff { border: 1px solid #26313c; border-radius: 8px; max-height: 44vh; overflow: auto; }
+.cds-row { border-bottom: 1px solid #1f2a33; display: flex; font-size: 13px; gap: 10px; justify-content: space-between; padding: 6px 10px; }
+.cds-row:last-child { border-bottom: 0; }
+.cds-k { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cds-v { flex-shrink: 0; }
+.cds-v s { color: #7c8894; }
+.cds-v b { color: #ffc89e; }
+.cds-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.cds-field > span { color: #aeb9c4; font-size: 12.5px; }
+.cds-field .cds-link { align-self: flex-start; font-size: 12.5px; }
+.cds-copy { box-sizing: border-box; font: 12px/1.4 ui-monospace, monospace; width: 100%; }
+@media (max-width: 480px) {
+  .cds-overlay { align-items: flex-end; padding: 0; }
+  .cds-modal { border-radius: 14px 14px 0 0; max-height: 92vh; }
+  .cds-item { flex-direction: column; }
+  .cds-item-actions { flex-direction: row; }
 }

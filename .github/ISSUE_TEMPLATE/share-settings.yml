@@ -1,0 +1,49 @@
+name: 설정 공유 (Share settings)
+description: 내 CarrotPilot 설정을 데모의 '설정 불러오기(web)' 목록에 올립니다
+title: "[설정 공유] "
+labels: ["share-settings"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        데모의 `DEMO` → **내 설정 올리기**로 열면 아래 칸이 자동으로 채워집니다. **Create**를 누르면 봇이 확인하고, 통과하면 1~3분 뒤 데모 목록에 올라갑니다.
+
+        - 닉네임, 차종, 날짜, 메모, 그리고 이 이슈를 올린 GitHub 계정이 **공개**됩니다.
+        - 웹에서 바꿀 수 있는 설정 중 **기본값과 다른 값만** 저장됩니다. 주행 기록, 시간대, 약관 동의 같은 기기 정보는 봇이 버립니다.
+  - type: input
+    id: nickname
+    attributes:
+      label: 닉네임
+      description: 목록에 보일 이름 (20자 이하)
+    validations:
+      required: true
+  - type: input
+    id: car
+    attributes:
+      label: 차종
+      description: 데모 차량 목록의 이름 그대로 (예. Hyundai Ioniq 5 PE (with HDA II) 2024)
+    validations:
+      required: true
+  - type: input
+    id: date
+    attributes:
+      label: 날짜
+      description: 이 설정을 쓴 날짜 (YYYY-MM-DD)
+      placeholder: "2026-09-25"
+    validations:
+      required: true
+  - type: textarea
+    id: memo
+    attributes:
+      label: 메모
+      description: 선택. 어떤 주행에 맞춘 설정인지 등 (200자 이하)
+    validations:
+      required: false
+  - type: textarea
+    id: settings
+    attributes:
+      label: 설정 JSON
+      description: 도구 → Backup으로 받은 params_backup.json 내용 전체를 붙여 넣어도 됩니다
+      render: json
+    validations:
+      required: true

@@ -364,17 +364,37 @@
     const badge = document.createElement("div");
     badge.id = "carrotDemoBadge";
     badge.innerHTML = `
-      <button type="button" class="cdb-pill" aria-expanded="false">DEMO</button>
+      <div class="cdb-tabs">
+        <button type="button" class="cdb-pill" aria-expanded="false">DEMO</button>
+        <button type="button" class="cdb-pill cdb-pill--share" data-act="load">설정 불러오기(web)</button>
+      </div>
       <div class="cdb-panel" hidden>
         <strong>Carrot Web 라이브 데모</strong>
         <p>실제 기기 없이 <b>${META.repo || ""}@${META.branch || ""}</b> 최신 코드를 그대로 돌립니다. 바꾼 값은 이 브라우저에만 저장되고 차량에 적용되지 않습니다.</p>
         <p class="cdb-meta">upstream <a target="_blank" rel="noopener" href="https://github.com/${META.repo}/commit/${META.commit}">${commit}</a> · ${relTime(META.commitDate)}<br>${(META.subject || "").replace(/[<>&]/g, "")}</p>
         <div class="cdb-actions">
+          <button type="button" data-act="upload">내 설정 올리기</button>
           <button type="button" data-act="reset">데모 초기화</button>
           ${META.demoRepo ? `<a target="_blank" rel="noopener" href="https://github.com/${META.demoRepo}">소스</a>` : ""}
         </div>
       </div>`;
     const pill = badge.querySelector(".cdb-pill");
+    let sharePromise = null;
+    const withShare = (fn) => {
+      sharePromise ||= new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = `${BASE}_demo/share.js?v=${VERSION}`;
+        script.onload = () => resolve(window.CarrotDemoShare);
+        script.onerror = () => { sharePromise = null; reject(new Error("share.js")); };
+        document.head.appendChild(script);
+      });
+      sharePromise.then((share) => {
+        panel.hidden = true;
+        share[fn]();
+      });
+    };
+    badge.querySelector('[data-act="load"]').addEventListener("click", () => withShare("openLoad"));
+    badge.querySelector('[data-act="upload"]').addEventListener("click", () => withShare("openUpload"));
     const panel = badge.querySelector(".cdb-panel");
     pill.addEventListener("click", () => {
       panel.hidden = !panel.hidden;

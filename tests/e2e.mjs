@@ -93,6 +93,27 @@ try {
   check(new URL(page.url()).pathname === PREFIX, "script navigation to a backend file stays in the demo");
   await download;
 
+  // Shared settings: schema + index load, and a preset applies through the
+  // upstream restore endpoints.
+  await page.click('#carrotDemoBadge [data-act="load"]');
+  await page.waitForSelector(".cds-list", { timeout: 15_000 });
+  check(true, "설정 불러오기(web) opens");
+  const shared = await page.evaluate(async () => {
+    const schema = await (await fetch("shared/schema.json")).json();
+    const key = Object.keys(schema.settings).find((k) => typeof schema.settings[k].max === "number"
+      && schema.settings[k].max > schema.settings[k].default);
+    const values = { [key]: String(schema.settings[key].max) };
+    const r = await fetch("/api/params_restore_json", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values }),
+    });
+    const bulk = await (await fetch(`/api/params_bulk?names=${key}`)).json();
+    return { settings: Object.keys(schema.settings).length, cars: schema.cars.length, key, ok: r.ok,
+             applied: String(bulk.values[key]) === values[key] };
+  });
+  check(shared.settings > 150 && shared.cars > 100, `share schema (${shared.settings} settings, ${shared.cars} cars)`);
+  check(shared.ok && shared.applied, `preset values apply through params_restore_json (${shared.key})`);
+  await page.keyboard.press("Escape");
+
   const outbound = [];
   page.on("request", (req) => {
     const url = new URL(req.url());

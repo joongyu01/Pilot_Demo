@@ -109,7 +109,33 @@ with open(os.path.join(stage, "app-shell.html"), "w", encoding="utf-8", newline=
 sources, makers = cars.load_supported_cars()
 with open(os.path.join(stage, "cars.json"), "w", encoding="utf-8") as f:
   json.dump({"sources": [], "makers": makers}, f, ensure_ascii=False)
-print(json.dumps({"makers": len(makers), "cars": sum(len(v) for v in makers.values()), "stubbed": demo_backend.STUBBED}))
+
+# Shared-settings schema: what the web lets a user edit (carrot catalog plus
+# the Device tab toggles), with the defaults and bounds a preset is checked
+# against. The demo's upload form and the share bot both read this file.
+import params_pyx
+from openpilot.selfdrive.carrot.server.services import device_info
+# The raw catalog, not get_settings_cached(): that view narrows some bounds to
+# the current vehicle (CruiseGapLevels), and a preset may come from any car.
+with open(os.path.join(upstream, "openpilot/selfdrive/carrot_settings.json"), encoding="utf-8") as f:
+  catalog = json.load(f)["params"]
+settings = {p["name"]: {"default": p.get("default"), "min": p.get("min"), "max": p.get("max"), "source": "carrot",
+                        "title": p.get("title") or p["name"], "etitle": p.get("etitle") or p["name"]}
+            for p in catalog if p.get("name")}
+fake = params_pyx.Params()
+for name, _ui_default in dict(device_info.DEVICE_SETTING_GROUPS).get("Toggles", ()):
+  if name in settings or name not in params_pyx.KEYS:
+    continue
+  kind = params_pyx.KEYS[name][0]
+  default = fake.get_default_value(name)
+  if kind == params_pyx.ParamKeyType.BOOL:
+    settings[name] = {"default": int(bool(default)), "min": 0, "max": 1, "source": "device"}
+  elif kind == params_pyx.ParamKeyType.INT:
+    settings[name] = {"default": int(default or 0), "min": None, "max": None, "source": "device"}
+cars_flat = sorted({c for v in makers.values() for c in v})
+with open(os.path.join(stage, "schema.json"), "w", encoding="utf-8") as f:
+  json.dump({"settings": settings, "cars": cars_flat}, f, ensure_ascii=False, separators=(",", ":"))
+print(json.dumps({"makers": len(makers), "cars": len(cars_flat), "shareable": len(settings), "stubbed": demo_backend.STUBBED}))
 """
   res = subprocess.run(
     [sys.executable, "-c", code, upstream, os.path.join(DEMO_SRC, "backend"), stage],
@@ -200,6 +226,27 @@ def build_backend_zip(upstream: str, stage: str, dest: str) -> int:
   return n
 
 
+def publish_shared(schema_path: str, dest: str) -> int:
+  """Copy the shared presets (committed by the share bot) next to the schema,
+  with an index the demo lists from."""
+  os.makedirs(os.path.join(dest, "presets"), exist_ok=True)
+  shutil.move(schema_path, os.path.join(dest, "schema.json"))
+  index = []
+  src = os.path.join(REPO, "shared", "presets")
+  for name in sorted(os.listdir(src)) if os.path.isdir(src) else []:
+    if not name.endswith(".json"):
+      continue
+    with open(os.path.join(src, name), encoding="utf-8") as f:
+      preset = json.load(f)
+    shutil.copy(os.path.join(src, name), os.path.join(dest, "presets", name))
+    index.append({k: preset.get(k) for k in ("id", "nickname", "car", "date", "memo", "author", "issue", "createdAt", "upstream")}
+                 | {"count": len(preset.get("values", {})), "file": f"presets/{name}"})
+  index.sort(key=lambda p: (p.get("date") or "", p.get("createdAt") or ""), reverse=True)
+  with open(os.path.join(dest, "index.json"), "w", encoding="utf-8") as f:
+    json.dump({"presets": index}, f, ensure_ascii=False, separators=(",", ":"))
+  return len(index)
+
+
 def git_meta(upstream: str) -> dict:
   def git(*args):
     try:
@@ -234,6 +281,7 @@ def main() -> None:
   files = build_backend_zip(upstream, demo_out, os.path.join(demo_out, "backend.zip"))
   for name in ("app-shell.html", "cars.json"):
     os.remove(os.path.join(demo_out, name))
+  presets = publish_shared(os.path.join(demo_out, "schema.json"), os.path.join(out, "shared"))
 
   meta = git_meta(upstream)
   meta["builtAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
@@ -242,7 +290,7 @@ def main() -> None:
   with open(os.path.join(demo_out, "meta.json"), "w", encoding="utf-8") as f:
     json.dump(meta, f, ensure_ascii=False, indent=2)
 
-  for name in ("boot.js", "backend-worker.js", "demo.css"):
+  for name in ("boot.js", "backend-worker.js", "share.js", "demo.css"):
     shutil.copy(os.path.join(DEMO_SRC, name), os.path.join(demo_out, name))
   with open(os.path.join(DEMO_SRC, "loader.html"), encoding="utf-8") as f:
     loader = f.read()
@@ -256,7 +304,7 @@ def main() -> None:
     shutil.copy(os.path.join(upstream, "LICENSE"), os.path.join(out, "LICENSE-openpilot.txt"))
 
   print(json.dumps({"commit": meta["commit"][:8], "css_url_rewrites": css_rewrites, "shared_assets": shared_assets,
-                    "backend_files": files, **native}, ensure_ascii=False))
+                    "backend_files": files, "presets": presets, **native}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

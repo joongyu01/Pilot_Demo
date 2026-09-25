@@ -1,0 +1,60 @@
+name: Share settings
+
+# A "설정 공유" issue becomes a preset in shared/presets/ as soon as it passes
+# tools/share_settings.py, then the demo is redeployed so it shows up in
+# "설정 불러오기(web)". Editing the issue updates the same preset.
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+  pages: read
+
+concurrency:
+  group: share-presets
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: contains(github.event.issue.labels.*.name, 'share-settings')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # The issue body is read from the event file by the script only;
+      # it is never expanded into a shell command.
+      - id: check
+        run: |
+          site=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq .html_url)
+          python tools/share_settings.py --event "$GITHUB_EVENT_PATH" --site "$site" \
+            --out shared/presets --comment "$RUNNER_TEMP/comment.md"
+
+      - if: steps.check.outputs.result == 'published'
+        run: |
+          git add shared/presets
+          if git diff --cached --quiet; then echo "unchanged"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Share settings #${ISSUE}"
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          gh workflow run deploy.yml --ref main
+
+      - if: always() && steps.check.outputs.result != ''
+        run: |
+          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/comment.md"
+          if [ "${{ steps.check.outputs.result }}" = "published" ]; then
+            gh issue edit "$ISSUE" --add-label published --remove-label invalid
+            gh issue close "$ISSUE" --reason completed
+          else
+            gh issue edit "$ISSUE" --add-label invalid --remove-label published
+          fi

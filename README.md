@@ -22,6 +22,17 @@ GitHub Actions가 매시간 `carrot-wip`의 최신 커밋을 확인합니다. �
 
 검사에 실패하면 배포하지 않습니다. 직전 정상 버전이 계속 서비스되고, 실패한 실행은 Actions 탭에 남습니다.
 
+## 설정 공유 (설정 불러오기(web))
+
+화면 맨 위 **설정 불러오기(web)**에서 다른 사람이 올린 설정을 차종별로 보고, 바뀌는 값을 미리 본 뒤 적용할 수 있습니다. 적용은 도구 → QR Restore와 같은 upstream 복원 API(`params_restore_preview` → `params_restore_json`)를 거칩니다. **JSON 받기**로 기기용 백업 파일도 받을 수 있습니다.
+
+올리는 방법: `DEMO` → **내 설정 올리기** → 백업 JSON 선택(또는 지금 데모 설정) → 닉네임·차종·날짜·메모 입력 → **GitHub에 올리기**. 이슈 양식이 채워진 채로 열리고, **Create**를 누르면 봇(`share.yml`)이 확인합니다.
+
+- 웹에서 편집할 수 있는 설정(카탈로그 + 디바이스 토글) 중 **기본값과 다른 값만** 저장합니다. 주행 기록, 시간대, 약관 동의, 차량 선택 같은 나머지 키는 버립니다.
+- 범위를 벗어난 값은 빼고, 차종은 데모 차량 목록에 있어야 합니다.
+- 통과하면 `shared/presets/<이슈 번호>.json`으로 커밋되고 데모가 다시 배포됩니다(1~3분). 이슈를 고치면 같은 항목이 갱신됩니다.
+- 닉네임·차종·날짜·메모와 이슈를 올린 GitHub 계정이 공개됩니다.
+
 ## 할 수 있는 것 / 없는 것
 
 | 동작함 | 기기가 있어야 함 (데모에서는 비어 있음) |
@@ -57,7 +68,9 @@ python tools/serve.py 8765   # http://localhost:8765/Pilot_Demo/
 | `demo/backend-worker.js` | Pyodide Worker. upstream 서버 코드를 풀고, IndexedDB에 상태를 저장 |
 | `demo/backend/demo_backend.py` | upstream 라우트를 등록하고 요청을 실제 핸들러로 전달. 기기 전용 모듈만 대체 |
 | `demo/backend/params_pyx.py` | `params_keys.h`를 읽는 순수 Python Params (타입·기본값·캐스팅 규칙은 `params_pyx.pyx`와 동일) |
-| `tools/build_site.py` | 사이트 조립. 서버 패키지의 import 폐포만 `backend.zip`에 담음 |
+| `tools/build_site.py` | 사이트 조립. 서버 패키지의 import 폐포만 `backend.zip`에 담고, 공유 스키마(`shared/schema.json`)를 만듦 |
+| `demo/share.js` | 설정 불러오기(web) / 내 설정 올리기 화면 |
+| `tools/share_settings.py` | 공유 봇의 검사기. 이슈 양식 → 프리셋 JSON |
 
 ## 크레딧
 
