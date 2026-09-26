@@ -64,6 +64,11 @@ try {
   check(await page.title() === "CarrotPilot", "upstream app shell is rendered");
   await page.waitForSelector(".intro-logo", { timeout: 15_000 }).catch(() => {});
   check(await page.locator(".intro-logo").count() > 0, "fresh visitor gets the upstream intro");
+  await page.waitForFunction(() => {
+    const logo = document.querySelector(".intro-logo");
+    return logo?.complete && logo.naturalWidth > 0;
+  }, null, { timeout: 15_000 });
+  check(true, "intro logo asset loads at the configured base path");
 
   const api = (path, body) => page.evaluate(async ([p, b]) => {
     const r = await fetch(p, b === undefined ? {} : {

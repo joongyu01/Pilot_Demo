@@ -202,7 +202,7 @@
   const URL_ATTRS = { IMG: "src", SCRIPT: "src", SOURCE: "src", VIDEO: "src", AUDIO: "src", IFRAME: "src", LINK: "href", A: "href", IMAGE: "href" };
 
   function needsRewrite(value) {
-    return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && !value.startsWith(BASE);
+    return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && siteUrl(value) !== value;
   }
 
   function urlAttr(el) {
