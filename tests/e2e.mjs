@@ -69,6 +69,26 @@ try {
     return logo?.complete && logo.naturalWidth > 0;
   }, null, { timeout: 15_000 });
   check(true, "intro logo asset loads at the configured base path");
+  check((await page.locator('#btnSetting').innerText()).trim() === "설정", "new visitors get Korean menus");
+  await page.locator('#introDeck [data-lang="en"]').click();
+  await page.waitForSelector('[data-demo-new]');
+  check((await page.locator('#btnSetting').innerText()).trim() === "Setting", "intro language updates the live UI");
+  check(JSON.stringify(await page.locator('#introDeck .intro-opt').allTextContents()) ===
+    JSON.stringify(["새로 시작하기", "설정 불러오기(web)", "내 설정 업로드하기(web)"]), "start choices have the requested order");
+  await page.locator('#introDeck .intro-back').click();
+  await page.locator('#introDeck [data-lang="ko"]').click();
+  await page.waitForSelector('[data-demo-new]');
+  await page.locator('[data-demo-upload]').click();
+  await page.waitForSelector('.cds-modal');
+  check(await page.locator('.cds-modal input[type="file"]').count() === 1, "start choice opens upload form");
+  await page.locator('.cds-x').click();
+  await page.locator('[data-demo-load]').click();
+  await page.waitForSelector('.cds-list');
+  check(await page.locator('.cds-load').count() === 1, "start choice opens the clean preset list");
+  await page.locator('.cds-x').click();
+  await page.locator('[data-demo-new]').click();
+  await page.waitForSelector('#introDeck [data-maker]');
+  check(true, "starting fresh continues to car selection");
 
   const api = (path, body) => page.evaluate(async ([p, b]) => {
     const r = await fetch(p, b === undefined ? {} : {

@@ -380,7 +380,7 @@
       </div>`;
     const pill = badge.querySelector(".cdb-pill");
     let sharePromise = null;
-    const withShare = (fn) => {
+    const withShare = (fn, options) => {
       sharePromise ||= new Promise((resolve, reject) => {
         const script = document.createElement("script");
         script.src = `${BASE}_demo/share.js?v=${VERSION}`;
@@ -388,9 +388,11 @@
         script.onerror = () => { sharePromise = null; reject(new Error("share.js")); };
         document.head.appendChild(script);
       });
-      sharePromise.then((share) => {
+      return sharePromise.then((share) => {
         panel.hidden = true;
-        share[fn]();
+        return share[fn](options);
+      }).catch((error) => {
+        window.alert(`설정 화면을 열지 못했습니다. 다시 시도해 주세요.\n${error.message}`);
       });
     };
     badge.querySelector('[data-act="load"]').addEventListener("click", () => withShare("openLoad"));
@@ -406,6 +408,68 @@
       location.reload();
     });
     document.body.appendChild(badge);
+    mountIntroChoices(withShare);
+  }
+
+  // Demo-only extension: retain upstream navigation, restoration and cleanup.
+  function mountIntroChoices(withShare, attempt = 0) {
+    const intro = window.CarrotIntro;
+    const shell = window.CarrotIntroShell;
+    if (!intro?.get("welcome") || !shell) {
+      if (attempt < 200) setTimeout(() => mountIntroChoices(withShare, attempt + 1), 50);
+      return;
+    }
+    const ko = window.CarrotIntroLangs?.find(([code]) => code === "ko");
+    if (ko) ko[2] = "안녕하세요!";
+    function decorate(el) {
+      el.querySelector("[data-restore]")?.remove();
+      el.querySelectorAll(".intro-cyc").forEach((node) => {
+        if (node.textContent === "오셨군요!") node.textContent = "안녕하세요!";
+      });
+      if (!el.querySelector(".demo-copyright")) {
+        const footer = document.createElement("footer");
+        footer.className = "demo-copyright";
+        footer.innerHTML = '© 2026 <a href="https://github.com/joongyu01/Pilot_Demo" target="_blank" rel="noopener">Joongyu Shin · Pilot Demo</a><br>Based on <a href="https://github.com/ajouatom/openpilot" target="_blank" rel="noopener">CarrotPilot</a> &amp; <a href="https://github.com/commaai/openpilot" target="_blank" rel="noopener">openpilot</a>';
+        el.appendChild(footer);
+      }
+    }
+    const welcome = intro.get("welcome");
+    const render = welcome.render;
+    welcome.render = function(el) {
+      const cleanup = render.call(this, el);
+      decorate(el);
+      return cleanup;
+    };
+    document.querySelectorAll("#introDeck .intro-col").forEach((el) => {
+      if (el.querySelector("[data-lang]")) decorate(el);
+    });
+    intro.register({
+      id: "demo-settings", flow: false,
+      render(el) {
+        el.innerHTML = `<h2 class="intro-title">설정은 어떻게 불러올까요?</h2>
+          <div class="intro-opts">
+            <button type="button" class="intro-opt" data-demo-new>새로 시작하기</button>
+            <button type="button" class="intro-opt" data-demo-load>설정 불러오기(web)</button>
+            <button type="button" class="intro-opt" data-demo-upload>내 설정 업로드하기(web)</button>
+          </div>`;
+        el.querySelector("[data-demo-new]").onclick = (event) => shell.pick(event.currentTarget, "car");
+        el.querySelector("[data-demo-load]").onclick = () => withShare("openLoad", { onboarding: true });
+        el.querySelector("[data-demo-upload]").onclick = () => withShare("openUpload");
+        decorate(el);
+      },
+    });
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest?.("#introDeck [data-lang]");
+      if (!button) return;
+      event.stopImmediatePropagation();
+      intro.ctx.lang = button.dataset.lang;
+      intro.applyLang();
+      // Update the live UI as well as the server setting; saving alone leaves
+      // the already-loaded settings catalog in its previous language.
+      if (typeof window.setWebLanguage === "function") window.setWebLanguage(intro.ctx.lang);
+      else window.CarrotIntroApi.setLanguage(intro.ctx.lang).catch(() => {});
+      shell.pick(button, "demo-settings");
+    }, true);
   }
 
   async function start() {
@@ -436,6 +500,11 @@
     const info = await ready;
     window.__CARROT_DEMO_BACKEND__ = info;
     setStep("render");
+    // A server-side settings file suppresses the upstream first-run intro.
+    // Seed only the browser fallback; explicit saved language still wins.
+    try {
+      if (!localStorage.getItem('carrot_web_lang')) localStorage.setItem('carrot_web_lang', 'ko');
+    } catch {}
     const res = await backendFetch("GET", "/", { accept: "text/html" }, null);
     const html = new TextDecoder().decode(res.body);
     if (res.status !== 200) throw new Error(`index HTTP ${res.status}\n${html.slice(0, 500)}`);

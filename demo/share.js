@@ -105,8 +105,9 @@
   }
 
   /* ── 설정 불러오기(web) ──────────────────────────────── */
-  async function openLoad() {
+  async function openLoad({ onboarding = false } = {}) {
     const modal = openModal("설정 불러오기 (web)");
+    modal.body.closest(".cds-overlay").classList.add("cds-load");
     modal.body.innerHTML = `<p class="cds-muted">불러오는 중…</p>`;
     let schema, index, current;
     try {
@@ -128,11 +129,9 @@
           ${current ? `<option value="=${esc(current)}">내 차종 (${esc(current)})</option>` : ""}
           ${makers.map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("")}
         </select>
-        <input class="cds-q" type="search" placeholder="닉네임·차종·메모 검색">
+        <input class="cds-q" type="search" placeholder="차종·닉네임 검색" aria-label="차종·닉네임 검색">
       </div>
-      <div class="cds-list"></div>
-      <p class="cds-foot">다른 사람이 올린 설정입니다. 적용 전에 바뀌는 값을 확인하세요. <button type="button" class="cds-link" data-upload>내 설정 올리기</button></p>`;
-    modal.body.querySelector("[data-upload]").addEventListener("click", () => { modal.close(); openUpload(); });
+      <div class="cds-list"></div>`;
     const list = modal.body.querySelector(".cds-list");
     const makerSel = modal.body.querySelector(".cds-maker");
     const q = modal.body.querySelector(".cds-q");
@@ -150,20 +149,13 @@
         return;
       }
       list.innerHTML = shown.length ? shown.map((p, i) => `
-        <article class="cds-item">
-          <div class="cds-item-main">
-            <div><strong>${esc(p.nickname)}</strong> <span class="cds-date">${esc(p.date)}</span></div>
-            <div class="cds-car">${esc(p.car)}</div>
-            ${p.memo ? `<div class="cds-memo">${esc(p.memo)}</div>` : ""}
-            <div class="cds-muted">기본값과 다른 설정 ${p.count}개 · <a href="${esc(p.issue)}" target="_blank" rel="noopener">@${esc(p.author)}</a></div>
-          </div>
-          <div class="cds-item-actions">
-            <button type="button" class="cds-btn cds-primary" data-apply="${i}">미리보기·적용</button>
-            <button type="button" class="cds-btn" data-json="${i}">JSON 받기</button>
-          </div>
-        </article>`).join("") : `<p class="cds-muted">조건에 맞는 설정이 없습니다.</p>`;
+        <button type="button" class="cds-preset" data-apply="${i}">
+          <span class="cds-preset-car">${esc(p.car)}</span>
+          <span class="cds-preset-meta"><span>업로드일 <b>${esc(p.createdAt ? String(p.createdAt).slice(0, 10) : p.date)}</b></span>
+          <span>업로드자 <b>${esc(p.nickname)}</b></span></span>
+          <span class="cds-preset-arrow" aria-hidden="true">›</span>
+        </button>`).join("") : `<p class="cds-muted">조건에 맞는 설정이 없습니다.</p>`;
       list.querySelectorAll("[data-apply]").forEach((b) => b.addEventListener("click", () => preview(shown[+b.dataset.apply])));
-      list.querySelectorAll("[data-json]").forEach((b) => b.addEventListener("click", () => downloadJson(shown[+b.dataset.json])));
     };
     makerSel.addEventListener("change", render);
     q.addEventListener("input", render);
@@ -208,12 +200,18 @@
           <span class="cds-v"><s>${esc(e.current)}</s> → <b>${esc(e.value)}</b></span></div>`).join("")}</div>
         <div class="cds-actions">
           <button type="button" class="cds-btn" data-back>목록</button>
+          <button type="button" class="cds-btn" data-json>JSON 받기</button>
           <button type="button" class="cds-btn cds-primary" data-go ${changed.length ? "" : "disabled"}>적용</button>
         </div>`;
-      modal.body.querySelector("[data-back]").addEventListener("click", () => { modal.close(); openLoad(); });
+      modal.body.querySelector("[data-back]").addEventListener("click", () => { modal.close(); openLoad({ onboarding }); });
+      modal.body.querySelector("[data-json]").addEventListener("click", () => downloadJson(p));
       modal.body.querySelector("[data-go]").addEventListener("click", async () => {
         try {
           const j = await api("/api/params_restore_json", { values });
+          if (onboarding) {
+            if (j.result?.fails?.length) throw new Error("일부 설정 복원에 실패했습니다. 다시 적용해 주세요.");
+            await api("/api/param_set", { name: "CarSelected3", value: p.car, source: "web_preset" });
+          }
           const failed = new Set((j.result?.fails || []).map((f) => String(f?.key || "")));
           const restored = {};
           (j.preview?.entries || []).forEach((e) => { if (e.apply && !failed.has(e.key)) restored[e.key] = e.value; });
@@ -224,6 +222,10 @@
           });
           toast(`${p.nickname} 설정 ${Number(j.result?.ok_cnt || 0)}개를 적용했습니다`, "success");
           modal.close();
+          if (onboarding) {
+            window.CarrotIntro.ctx.restored = true;
+            window.CarrotIntroShell.goTo("legal");
+          }
         } catch (e) {
           toast(`적용 실패: ${e.message}`, "error");
         }
