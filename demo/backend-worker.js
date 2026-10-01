@@ -50,8 +50,14 @@ async function boot({ base, version, reset }) {
   await pyodide.loadPackage(["aiohttp"], { messageCallback: () => {} });
 
   progress("storage");
-  pyodide.FS.mkdirTree(DATA_DIR);
-  pyodide.FS.mount(pyodide.FS.filesystems.IDBFS, {}, DATA_DIR);
+  // IDBFS names its IndexedDB database after the mount point, so a demo served under a
+  // sub-path (a branch preview such as /speedcam/) mounts its own directory and links
+  // DATA_DIR to it; the root demo keeps /data and its existing saved settings.
+  const scope = base.replace(/^\/+|\/+$/g, "").replace(/[^A-Za-z0-9_-]+/g, "_");
+  const storeDir = scope ? `${DATA_DIR}-${scope}` : DATA_DIR;
+  pyodide.FS.mkdirTree(storeDir);
+  pyodide.FS.mount(pyodide.FS.filesystems.IDBFS, {}, storeDir);
+  if (storeDir !== DATA_DIR) pyodide.FS.symlink(storeDir, DATA_DIR);
   await syncfs(true);
   if (reset) {
     pyodide.runPython(`

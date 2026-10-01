@@ -22,6 +22,19 @@ GitHub Actions가 매시간 `carrot-wip`의 최신 커밋을 확인합니다. �
 
 검사에 실패하면 배포하지 않습니다. 직전 정상 버전이 계속 서비스되고, 실패한 실행은 Actions 탭에 남습니다.
 
+## 브랜치 미리보기
+
+같은 파이프라인으로 개발 브랜치 하나를 메인 데모 옆 하위 경로에 함께 배포합니다(`deploy.yml`의 `PREVIEW_*`).
+
+| 경로 | 브랜치 |
+|---|---|
+| [`/`](https://demopilot.joongyu.co.kr/) | `ajouatom/openpilot` `carrot-wip` |
+| [`/speedcam/`](https://demopilot.joongyu.co.kr/speedcam/) | `ajouatom/openpilot` `joongyu01/carrot-wip-speedcam` (순정 내비 카메라 종류 정책·감속 중지 요청·구간 평균) |
+
+- 미리보기도 빌드 → 백엔드 검사 → 브라우저 검사를 통과해야 배포되고, 배포한 커밋은 `state/preview.json`에 남습니다.
+- 브라우저 저장소가 분리되어(IndexedDB `/data-speedcam`) 미리보기에서 바꾼 값이 메인 데모에 섞이지 않습니다.
+- 브랜치가 삭제되면(병합 후 등) 미리보기는 건너뜁니다. 다른 브랜치로 바꾸려면 `PREVIEW_BRANCH`·`PREVIEW_PATH`만 고칩니다.
+
 ## 설정 공유 (설정 불러오기(web))
 
 화면 맨 위 **설정 불러오기(web)**에서 다른 사람이 올린 설정을 차종별로 보고, 바뀌는 값을 미리 본 뒤 적용할 수 있습니다. 적용은 도구 → QR Restore와 같은 upstream 복원 API(`params_restore_preview` → `params_restore_json`)를 거칩니다. **JSON 받기**로 기기용 백업 파일도 받을 수 있습니다.

@@ -3,6 +3,10 @@ name: Deploy live demo
 # Hourly: if ajouatom/openpilot carrot-wip has moved, rebuild the demo from the
 # new tip, test it in a real browser, and publish it. A failing build or test
 # leaves the previous good demo online.
+#
+# Branch preview: the same build of PREVIEW_BRANCH is published under
+# /PREVIEW_PATH/ next to the main demo (own browser storage, see
+# demo/backend-worker.js). If the branch is gone, the preview is skipped.
 on:
   schedule:
     - cron: "17 * * * *"
@@ -23,6 +27,9 @@ concurrency:
 env:
   UPSTREAM_REPO: ajouatom/openpilot
   UPSTREAM_BRANCH: carrot-wip
+  PREVIEW_REPO: ajouatom/openpilot
+  PREVIEW_BRANCH: joongyu01/carrot-wip-speedcam
+  PREVIEW_PATH: speedcam
 
 jobs:
   check:
@@ -30,6 +37,7 @@ jobs:
     outputs:
       build: ${{ steps.cmp.outputs.build }}
       upstream: ${{ steps.cmp.outputs.upstream }}
+      preview: ${{ steps.cmp.outputs.preview }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,9 +46,12 @@ jobs:
         run: |
           upstream=$(git ls-remote "https://github.com/${UPSTREAM_REPO}.git" "refs/heads/${UPSTREAM_BRANCH}" | cut -f1)
           deployed=$(jq -r '.commit // ""' state/upstream.json 2>/dev/null || true)
+          preview=$(git ls-remote "https://github.com/${PREVIEW_REPO}.git" "refs/heads/${PREVIEW_BRANCH}" | cut -f1)
+          preview_deployed=$(jq -r '.commit // ""' state/preview.json 2>/dev/null || true)
           echo "upstream=${upstream}" >> "$GITHUB_OUTPUT"
-          echo "upstream ${upstream:0:8}, deployed ${deployed:0:8}"
-          if [ "${{ github.event_name }}" != "schedule" ] || [ "$upstream" != "$deployed" ]; then
+          echo "preview=${preview}" >> "$GITHUB_OUTPUT"
+          echo "upstream ${upstream:0:8}, deployed ${deployed:0:8}; preview ${preview:0:8}, deployed ${preview_deployed:0:8}"
+          if [ "${{ github.event_name }}" != "schedule" ] || [ "$upstream" != "$deployed" ] || [ "$preview" != "$preview_deployed" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           else
             echo "build=false" >> "$GITHUB_OUTPUT"
@@ -53,6 +64,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       upstream: ${{ steps.fetch.outputs.sha }}
+      preview: ${{ steps.preview.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
 
@@ -111,6 +123,38 @@ jobs:
           node tests/e2e.mjs _site
           DEMO_TEST_PREFIX=/ node tests/e2e.mjs _site
 
+      - name: Branch preview (same pipeline, published under /PREVIEW_PATH/)
+        id: preview
+        if: needs.check.outputs.preview != ''
+        run: |
+          git clone --filter=blob:none --no-checkout --depth 1 --branch "$PREVIEW_BRANCH" \
+            "https://github.com/${PREVIEW_REPO}.git" preview-upstream
+          cd preview-upstream
+          git sparse-checkout set --no-cone \
+            '/LICENSE' \
+            '/openpilot/__init__.py' \
+            '/openpilot/common/' \
+            '/openpilot/selfdrive/__init__.py' \
+            '/openpilot/selfdrive/carrot/' \
+            '/openpilot/selfdrive/carrot_settings.json' \
+            '/openpilot/selfdrive/ui/translations/' \
+            '/openpilot/selfdrive/assets/' \
+            '!/openpilot/selfdrive/assets/fonts/' \
+            '!/openpilot/selfdrive/assets/training/' \
+            '/opendbc_repo/opendbc/'
+          git checkout
+          sha=$(git rev-parse HEAD)
+          (cd openpilot/selfdrive/carrot/web && npm ci --no-audit --no-fund && npm run build)
+          cd ..
+          UPSTREAM_SHA="$sha" UPSTREAM_DATE="$(git -C preview-upstream log -1 --format=%cI)" \
+            UPSTREAM_SUBJECT="$(git -C preview-upstream log -1 --format=%s)" \
+            python tools/build_site.py --upstream preview-upstream --out "_site/${PREVIEW_PATH}"
+          python tools/smoke_backend.py "_site/${PREVIEW_PATH}/_demo/backend.zip"
+          DEMO_TEST_PREFIX="/${PREVIEW_PATH}/" node tests/e2e.mjs "_site/${PREVIEW_PATH}"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+        env:
+          DEMO_SHA: ${{ github.sha }}
+
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
@@ -140,15 +184,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: |
-          sha="${{ needs.build.outputs.upstream }}"
-          prev=$(jq -r '.commit // ""' state/upstream.json 2>/dev/null || true)
-          [ "$sha" = "$prev" ] && { echo "unchanged"; exit 0; }
+          now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           mkdir -p state
-          jq -n --arg commit "$sha" --arg repo "$UPSTREAM_REPO" --arg branch "$UPSTREAM_BRANCH" \
-                --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                '{repo: $repo, branch: $branch, commit: $commit, deployedAt: $at}' > state/upstream.json
+          sha="${{ needs.build.outputs.upstream }}"
+          if [ "$sha" != "$(jq -r '.commit // ""' state/upstream.json 2>/dev/null || true)" ]; then
+            jq -n --arg commit "$sha" --arg repo "$UPSTREAM_REPO" --arg branch "$UPSTREAM_BRANCH" --arg at "$now" '{repo: $repo, branch: $branch, commit: $commit, deployedAt: $at}' > state/upstream.json
+          fi
+          preview="${{ needs.build.outputs.preview }}"
+          if [ -z "$preview" ]; then
+            rm -f state/preview.json
+          elif [ "$preview" != "$(jq -r '.commit // ""' state/preview.json 2>/dev/null || true)" ]; then
+            jq -n --arg commit "$preview" --arg repo "$PREVIEW_REPO" --arg branch "$PREVIEW_BRANCH" --arg path "$PREVIEW_PATH" --arg at "$now" '{repo: $repo, branch: $branch, path: $path, commit: $commit, deployedAt: $at}' > state/preview.json
+          fi
+          git add -A state
+          git diff --cached --quiet && { echo "unchanged"; exit 0; }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add state/upstream.json
-          git commit -m "Track ${UPSTREAM_BRANCH} ${sha:0:8}"
+          git commit -m "Track ${UPSTREAM_BRANCH} ${sha:0:8}${preview:+, preview ${preview:0:8}}"
           git push
