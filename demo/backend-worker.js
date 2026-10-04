@@ -51,7 +51,7 @@ async function boot({ base, version, reset }) {
 
   progress("storage");
   // IDBFS names its IndexedDB database after the mount point, so a demo served under a
-  // sub-path (a branch preview such as /speedcam/) mounts its own directory and links
+  // sub-path (a branch preview such as /dev/) mounts its own directory and links
   // DATA_DIR to it; the root demo keeps /data and its existing saved settings.
   const scope = base.replace(/^\/+|\/+$/g, "").replace(/[^A-Za-z0-9_-]+/g, "_");
   const storeDir = scope ? `${DATA_DIR}-${scope}` : DATA_DIR;

@@ -28,8 +28,8 @@ env:
   UPSTREAM_REPO: ajouatom/openpilot
   UPSTREAM_BRANCH: carrot-wip
   PREVIEW_REPO: ajouatom/openpilot
-  PREVIEW_BRANCH: joongyu01/carrot-wip-speedcam
-  PREVIEW_PATH: speedcam
+  PREVIEW_BRANCH: joongyu01/carrot-wip-dev
+  PREVIEW_PATH: dev
 
 jobs:
   check:

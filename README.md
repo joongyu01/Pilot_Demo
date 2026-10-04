@@ -29,10 +29,10 @@ GitHub Actions가 매시간 `carrot-wip`의 최신 커밋을 확인합니다. �
 | 경로 | 브랜치 |
 |---|---|
 | [`/`](https://demopilot.joongyu.co.kr/) | `ajouatom/openpilot` `carrot-wip` |
-| [`/speedcam/`](https://demopilot.joongyu.co.kr/speedcam/) | `ajouatom/openpilot` `joongyu01/carrot-wip-speedcam` (순정 내비 카메라 종류 정책·감속 중지 요청·구간 평균) |
+| [`/dev/`](https://demopilot.joongyu.co.kr/dev/) | `ajouatom/openpilot` `joongyu01/carrot-wip-dev` (순정 내비 카메라 종류 정책·감속 중지 요청·구간 평균·깜빡이 레버) |
 
 - 미리보기도 빌드 → 백엔드 검사 → 브라우저 검사를 통과해야 배포되고, 배포한 커밋은 `state/preview.json`에 남습니다.
-- 브라우저 저장소가 분리되어(IndexedDB `/data-speedcam`) 미리보기에서 바꾼 값이 메인 데모에 섞이지 않습니다.
+- 브라우저 저장소가 분리되어(IndexedDB `/data-dev`) 미리보기에서 바꾼 값이 메인 데모에 섞이지 않습니다.
 - 브랜치가 삭제되면(병합 후 등) 미리보기는 건너뜁니다. 다른 브랜치로 바꾸려면 `PREVIEW_BRANCH`·`PREVIEW_PATH`만 고칩니다.
 
 ## 설정 공유 (설정 불러오기(web))
