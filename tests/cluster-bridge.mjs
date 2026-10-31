@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+
+const listeners={},sent=[],writes=[],timers=[],ui=[];
+const values={ClusterLaneTest:45,ClusterLaneTestValue:8,ClusterLaneTestFrom:0,ClusterLaneTestTo:0};
+const definitions={settings:{ClusterLaneTest:{min:-1,max:173},ClusterLaneTestValue:{min:-4,max:4095}},fields:{45:{name:'LANELINE_LEFT'}}};
+const parent={postMessage:(message,origin)=>sent.push({message,origin})};
+const window={parent,__CARROT_DEMO__:{BASE:'/dev/'},__CARROT_DEMO_META__:{commit:'abc',branch:'joongyu01/carrot-wip-dev'},addEventListener:(name,fn)=>listeners[name]=fn,dispatchEvent:event=>ui.push(event)};
+let fail=false;
+vm.runInNewContext(readFileSync('demo/cluster-bridge.js','utf8'),{window,CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},
+  fetch:async(url,options)=>{
+    if(url.includes('cluster-fields.json'))return {ok:true,json:async()=>definitions};
+    if(url.startsWith('/api/params_bulk'))return {ok:true,json:async()=>({ok:true,values:{...values,SecretKey:'never forward'}})};
+    assert.equal(url,'/api/param_set');const body=JSON.parse(options.body);writes.push(body);
+    if(fail)return {ok:false,json:async()=>({error:'storage full'})};
+    values[body.name]=body.value;listeners['carrot-demo-settings-changed']();
+    return {ok:true,json:async()=>({ok:true})};
+  },setTimeout:f=>timers.push(f),clearTimeout:()=>{}});
+const drain=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
+const receive=async(data,origin='https://www.joongyu.co.kr',source=parent)=>{listeners.message({origin,source,data:{channel:'cluster-pilot-v1',...data}});await drain();};
+await drain();assert.equal(sent.at(-1).message.type,'ready');
+await receive({type:'subscribe'},'https://attacker.test');assert.equal(sent.length,1);
+await receive({type:'subscribe'},undefined,{});assert.equal(sent.length,1);
+await receive({type:'subscribe'});
+assert.deepEqual(Object.keys(sent.at(-1).message.values),Object.keys(values));
+assert.equal(sent.at(-1).message.mapping.name,'LANELINE_LEFT');
+assert.ok(sent.every(m=>m.origin==='https://www.joongyu.co.kr'));
+await receive({type:'set',values:{ClusterLaneTest:45,SecretKey:1}});assert.equal(writes.length,0);
+await receive({type:'set',values:{ClusterLaneTest:45,ClusterLaneTestValue:4096}});assert.equal(writes.length,0);
+await receive({type:'set',values:{ClusterLaneTest:45,ClusterLaneTestValue:1.5}});assert.equal(writes.length,0);
+await receive({type:'set',values:{ClusterLaneTest:21,ClusterLaneTestValue:240}});
+assert.equal(writes.length,2);assert.equal(sent.at(-1).message.values.ClusterLaneTestValue,240);
+assert.equal(ui.at(-1).type,'carrot:paramsrestored');assert.equal(ui.at(-1).detail.values.ClusterLaneTestValue,240);
+assert.equal(timers.length,0,'no intermediate snapshot during paired writes');
+values.ClusterLaneTestValue=241;listeners['carrot-demo-settings-changed']();await timers.shift()();await drain();
+assert.equal(sent.at(-1).message.values.ClusterLaneTestValue,241);
+fail=true;await receive({type:'set',values:{ClusterLaneTest:45,ClusterLaneTestValue:8}});
+assert.equal(sent.at(-1).message.error,'storage full');
+await receive({type:'unsubscribe'});const count=writes.length;
+await receive({type:'set',values:{ClusterLaneTest:45,ClusterLaneTestValue:8}});assert.equal(writes.length,count);
+console.log('PASS: origin/source guards, setting whitelist/ranges, two-way snapshots, save failure and unsubscribe');

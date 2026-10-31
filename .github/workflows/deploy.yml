@@ -1,6 +1,6 @@
 name: Deploy live demo
 
-# Hourly: if ajouatom/openpilot carrot-wip has moved, rebuild the demo from the
+# Every 15 minutes: if either tracked branch has moved, rebuild the demo from the
 # new tip, test it in a real browser, and publish it. A failing build or test
 # leaves the previous good demo online.
 #
@@ -9,7 +9,7 @@ name: Deploy live demo
 # demo/backend-worker.js). If the branch is gone, the preview is skipped.
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
@@ -114,7 +114,11 @@ jobs:
           DEMO_SHA: ${{ github.sha }}
 
       - name: Backend checks (upstream server code, native)
-        run: python tools/smoke_backend.py _site/_demo/backend.zip
+        run: |
+          node tests/persist.mjs
+          node tests/cluster-bridge.mjs
+          python tests/cluster_fields.py
+          python tools/smoke_backend.py _site/_demo/backend.zip
 
       - name: Browser checks (Pyodide in Chromium)
         run: |
@@ -146,7 +150,7 @@ jobs:
           sha=$(git rev-parse HEAD)
           (cd openpilot/selfdrive/carrot/web && npm ci --no-audit --no-fund && npm run build)
           cd ..
-          UPSTREAM_SHA="$sha" UPSTREAM_DATE="$(git -C preview-upstream log -1 --format=%cI)" \
+          UPSTREAM_REPO="$PREVIEW_REPO" UPSTREAM_BRANCH="$PREVIEW_BRANCH" UPSTREAM_SHA="$sha" UPSTREAM_DATE="$(git -C preview-upstream log -1 --format=%cI)" \
             UPSTREAM_SUBJECT="$(git -C preview-upstream log -1 --format=%s)" \
             python tools/build_site.py --upstream preview-upstream --out "_site/${PREVIEW_PATH}"
           python tools/smoke_backend.py "_site/${PREVIEW_PATH}/_demo/backend.zip"
@@ -175,7 +179,7 @@ jobs:
 
   record:
     # Commit the deployed upstream commit. This is the bot's memory for the
-    # hourly check, and the commit keeps the schedule alive (GitHub pauses
+    # scheduled check, and the commit keeps the schedule alive (GitHub pauses
     # scheduled workflows in repositories without activity for 60 days).
     needs: [build, deploy]
     runs-on: ubuntu-latest

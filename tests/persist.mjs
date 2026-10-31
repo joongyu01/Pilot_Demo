@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+
+const callbacks=[];
+const scope={self:{},TextEncoder,Uint8Array};
+vm.createContext(scope);
+vm.runInContext(readFileSync('demo/backend-worker.js','utf8'),scope);
+scope.fake={FS:{syncfs:(_populate,done)=>callbacks.push(done)},toPy:()=>({destroy(){}})};
+vm.runInContext(`pyodide=fake;dispatch=async()=>({toJs:()=>({status:200,headers:{},body:new Uint8Array()}),destroy(){}})`,scope);
+const first=vm.runInContext('handle({method:"POST",headers:{}})',scope);
+await Promise.resolve();
+const second=vm.runInContext('handle({method:"POST",headers:{}})',scope);
+await Promise.resolve();
+let finished=0;first.then(()=>finished++);second.then(()=>finished++);
+assert.equal(callbacks.length,1);
+callbacks.shift()();await Promise.resolve();await Promise.resolve();
+assert.equal(finished,0,'neither response may precede the second flush');
+assert.equal(callbacks.length,1);callbacks.shift()();
+await Promise.all([first,second]);assert.equal(finished,2);
+const failed=vm.runInContext('handle({method:"POST",headers:{}})',scope);
+await Promise.resolve();callbacks.shift()(new Error('quota exceeded'));
+await assert.rejects(failed,/quota exceeded/);
+const retry=vm.runInContext('handle({method:"POST",headers:{}})',scope);
+await Promise.resolve();callbacks.shift()();await retry;
+await vm.runInContext('handle({method:"GET",headers:{}})',scope);
+assert.equal(callbacks.length,0,'reads do not flush');
+console.log('PASS: concurrent writes wait for durable storage; failures reject and retry succeeds');

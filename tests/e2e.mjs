@@ -111,6 +111,20 @@ try {
   const persisted = await api("/api/params_bulk?names=AutoEngage");
   check(persisted.json?.values?.AutoEngage === 2, "values persist across reloads (IndexedDB)");
 
+  for (const value of [1, 2, 0]) {
+    const saved = await api("/api/param_set", { name: "AutoEngage", value, source: "e2e" });
+    check(saved.status === 200, `save completes (${value})`);
+    await boot();
+    const restored = await api("/api/params_bulk?names=AutoEngage");
+    check(restored.json?.values?.AutoEngage === value, `immediate reload preserves ${value}`);
+  }
+
+  const fields = JSON.parse(await readFile(join(SITE, "_demo/cluster-fields.json"), "utf8"));
+  if (PREFIX === "/dev/") {
+    check(fields.fields[45]?.name === "LANELINE_LEFT" && fields.fields[21]?.name === "ALERTS_4",
+      "development build includes its own cluster signal mapping");
+  }
+
   // A backend file download must stay on the page and produce a file.
   const download = page.waitForEvent("download", { timeout: 20_000 }).catch(() => null);
   await page.evaluate(() => { window.location.href = "/download/nope.json"; });

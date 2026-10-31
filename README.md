@@ -12,7 +12,7 @@
 
 ## 자동 업데이트
 
-GitHub Actions가 매시간 `carrot-wip`의 최신 커밋을 확인합니다. 바뀌었으면 다음 순서로 진행합니다.
+GitHub Actions가 15분마다 `carrot-wip`와 `joongyu01/carrot-wip-dev`의 최신 커밋을 확인합니다. GitHub 예약 실행은 지연될 수 있습니다. 즉시 갱신하려면 Actions → Deploy live demo → Run workflow를 실행합니다. 바뀌었으면 다음 순서로 진행합니다.
 
 1. upstream에서 웹과 서버에 필요한 경로만 sparse clone
 2. 웹 빌드 → 사이트 조립 (`tools/build_site.py`)
@@ -34,6 +34,15 @@ GitHub Actions가 매시간 `carrot-wip`의 최신 커밋을 확인합니다. �
 - 미리보기도 빌드 → 백엔드 검사 → 브라우저 검사를 통과해야 배포되고, 배포한 커밋은 `state/preview.json`에 남습니다.
 - 브라우저 저장소가 분리되어(IndexedDB `/data-dev`) 미리보기에서 바꾼 값이 메인 데모에 섞이지 않습니다.
 - 브랜치가 삭제되면(병합 후 등) 미리보기는 건너뜁니다. 다른 브랜치로 바꾸려면 `PREVIEW_BRANCH`·`PREVIEW_PATH`만 고칩니다.
+
+## 계기판 함께 보기
+
+[계기판 연동 화면](https://www.joongyu.co.kr/cluster/?pilot=1)에서 `/dev/`의 실제 설정 UI를 함께 엽니다. **테스트 칸 / 테스트 값 → 데모에 적용** 또는 아래 데모 설정을 바꾸면 양쪽 화면이 갱신됩니다. 예: 45 / 8은 왼쪽 점선, 21 / 240과 241은 관찰된 중앙 경고 문구입니다.
+
+- 연결 설정은 `ClusterLaneTest`, `ClusterLaneTestValue`, `ClusterLaneTestFrom`, `ClusterLaneTestTo`뿐이며 쓰기는 앞의 두 키만 허용합니다. 다른 데모 설정이 계기판에 효과가 있는 것으로 표시하지 않습니다.
+- 배포한 개발 브랜치에서 시험 칸과 DBC 비트 정의를 함께 추출합니다. 계기판의 지원 정의와 다르면 반영을 멈춥니다. 칸 자동 순회(-1)는 미지원, 값 순회(-1~-4)는 지원합니다.
+- 서로 허용한 HTTPS 주소와 실제 iframe 창만 연결합니다. 설정은 해당 iframe의 브라우저 저장소에 저장되고 실차·CAN 송신과 연결되지 않습니다. 브라우저의 저장소 분리 정책에 따라 별도 탭과 값이 다를 수 있습니다.
+- IndexedDB 저장 완료 후에만 쓰기 성공을 반환합니다. 동시 쓰기·실패 후 재시도 단위 검사와 저장 직후 반복 새로고침 브라우저 검사를 배포 전에 실행합니다.
 
 ## 설정 공유 (설정 불러오기(web))
 
@@ -95,4 +104,4 @@ python tools/serve.py 8765   # http://localhost:8765/Pilot_Demo/
 
 ---
 
-**English** — An unofficial live demo of Carrot Web from `ajouatom/openpilot@carrot-wip`. The upstream web build runs unchanged, and the upstream aiohttp server runs in the browser via Pyodide, so every `/api/*` call is served by the real handler. A GitHub Actions job checks upstream hourly, rebuilds, tests in Chromium, and deploys only when the tests pass. Values stay in your browser (IndexedDB), and outbound network is blocked inside the demo server.
+**English** — An unofficial live demo of Carrot Web from `ajouatom/openpilot@carrot-wip`. The upstream web build runs unchanged, and the upstream aiohttp server runs in the browser via Pyodide, so every `/api/*` call is served by the real handler. GitHub Actions checks both tracked branches every 15 minutes, rebuilds, tests in Chromium, and deploys only when the tests pass. Values stay in your browser (IndexedDB), and outbound network is blocked inside the demo server.

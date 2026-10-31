@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import zipfile
+from cluster_fields import extract as cluster_fields
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -287,17 +288,19 @@ def main() -> None:
   meta["builtAt"] = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
   meta["demoCommit"] = os.environ.get("DEMO_SHA", "")
   meta["demoRepo"] = os.environ.get("GITHUB_REPOSITORY", "")
+  with open(os.path.join(demo_out, "cluster-fields.json"), "w", encoding="utf-8") as f:
+    json.dump(cluster_fields(upstream), f, ensure_ascii=False)
   with open(os.path.join(demo_out, "meta.json"), "w", encoding="utf-8") as f:
     json.dump(meta, f, ensure_ascii=False, indent=2)
 
-  for name in ("boot.js", "backend-worker.js", "share.js", "demo.css"):
+  for name in ("boot.js", "backend-worker.js", "share.js", "cluster-bridge.js", "demo.css"):
     shutil.copy(os.path.join(DEMO_SRC, name), os.path.join(demo_out, name))
   with open(os.path.join(DEMO_SRC, "loader.html"), encoding="utf-8") as f:
     loader = f.read()
   with open(os.path.join(out, "index.html"), "w", encoding="utf-8", newline="") as f:
     f.write(loader
             .replace("__DEMO_META__", json.dumps(meta, ensure_ascii=False).replace("</", "<\\/"))
-            .replace("__DEMO_VERSION__", (meta["commit"] or "dev")[:12]))
+            .replace("__DEMO_VERSION__", (meta["commit"] or "dev")[:12] + "-" + (meta["demoCommit"] or "local")[:12]))
   shutil.copy(os.path.join(DEMO_SRC, "404.html"), os.path.join(out, "404.html"))
   open(os.path.join(out, ".nojekyll"), "w").close()
   if os.path.isfile(os.path.join(upstream, "LICENSE")):

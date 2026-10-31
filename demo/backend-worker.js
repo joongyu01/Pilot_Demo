@@ -23,21 +23,21 @@ function syncfs(populate) {
   });
 }
 
-// Coalesce writes: one flush in flight, at most one queued behind it.
+// A successful write response must mean every queued flush is durable.
 function persist() {
-  if (syncing) {
-    syncAgain = true;
-    return syncing;
-  }
-  syncing = syncfs(false)
-    .catch((err) => console.warn("[demo] persist failed", err))
-    .finally(() => {
-      syncing = null;
-      if (syncAgain) {
-        syncAgain = false;
-        persist();
+  syncAgain = true;
+  if (!syncing) {
+    syncing = (async () => {
+      try {
+        while (syncAgain) {
+          syncAgain = false;
+          await syncfs(false);
+        }
+      } finally {
+        syncing = null;
       }
-    });
+    })();
+  }
   return syncing;
 }
 
@@ -95,7 +95,7 @@ async function handle({ method, path, headers, body }) {
   }
   const out = result.toJs({ dict_converter: Object.fromEntries });
   result.destroy();
-  if (method !== "GET" && method !== "HEAD") persist();
+  if (method !== "GET" && method !== "HEAD") await persist();
   const bytes = out.body instanceof Uint8Array ? out.body : new Uint8Array(0);
   return { status: out.status, headers: out.headers, body: bytes.slice().buffer };
 }

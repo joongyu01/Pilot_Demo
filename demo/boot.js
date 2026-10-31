@@ -15,7 +15,7 @@
   const SCRIPT_URL = new URL(document.currentScript.src, location.href);
   const BASE = SCRIPT_URL.pathname.replace(/_demo\/boot\.js$/, "");
   const ORIGIN = location.origin;
-  const VERSION = (META.commit || "dev").slice(0, 12);
+  const VERSION = (META.commit || "dev").slice(0, 12) + "-" + (META.demoCommit || "local").slice(0, 12);
   const BACKEND_PREFIXES = ["/api/", "/download/"];
   const RESET_FLAG = "carrotDemoReset";
 
@@ -88,7 +88,9 @@
       const headers = {};
       request.headers.forEach((v, k) => { headers[k] = v; });
       const body = request.method === "GET" || request.method === "HEAD" ? null : await request.arrayBuffer();
-      return toResponse(await backendFetch(request.method, path.split("#")[0], headers, body));
+      const response = toResponse(await backendFetch(request.method, path.split("#")[0], headers, body));
+      if (response.ok && !["GET", "HEAD"].includes(request.method)) window.dispatchEvent(new Event("carrot-demo-settings-changed"));
+      return response;
     }
     if (path === null) return nativeFetch(request);
     return nativeFetch(new Request(siteUrl(request.url), request));
@@ -367,6 +369,7 @@
       <div class="cdb-tabs">
         <button type="button" class="cdb-pill" aria-expanded="false">DEMO</button>
         <button type="button" class="cdb-pill cdb-pill--share" data-act="load">설정 불러오기(web)</button>
+        <a class="cdb-pill" href="https://www.joongyu.co.kr/cluster/?pilot=1" target="_blank" rel="noopener">계기판 함께 보기</a>
       </div>
       <div class="cdb-panel" hidden>
         <strong>Carrot Web 라이브 데모</strong>
@@ -408,6 +411,9 @@
       location.reload();
     });
     document.body.appendChild(badge);
+    const bridge = document.createElement("script");
+    bridge.src = `${BASE}_demo/cluster-bridge.js?v=${VERSION}`;
+    document.head.appendChild(bridge);
     mountIntroChoices(withShare);
   }
 

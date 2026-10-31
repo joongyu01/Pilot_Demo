@@ -42,6 +42,7 @@
 #carrotDemoBadge p { margin: 6px 0 0; }
 #carrotDemoBadge .cdb-meta { color: #8d99a6; font-size: 12px; word-break: break-word; }
 #carrotDemoBadge a { color: #ffb884; }
+#carrotDemoBadge .cdb-tabs a.cdb-pill { background: #273d35; color: #c6f1dd; text-decoration: none; white-space: nowrap; letter-spacing: 0; }
 #carrotDemoBadge .cdb-actions { align-items: center; display: flex; gap: 12px; margin-top: 10px; }
 #carrotDemoBadge .cdb-actions button {
   background: #2a3440;
