@@ -142,8 +142,19 @@ def boot() -> dict:
 
   from aiohttp import web
   from openpilot.selfdrive.carrot.server.services.params import HAS_PARAMS, Params
-  app = web.Application()
-  features.register_all(app)
+  # Some features import device-only modules while registering, not at import time (11-11: the Bluetooth
+  # monitor's tools.jetlink.blink_owner). Stub those the same way and register again on a fresh app.
+  for _ in range(50):
+    app = web.Application()
+    try:
+      features.register_all(app)
+      break
+    except ModuleNotFoundError as e:
+      if not e.name or e.name in STUBBED:
+        raise
+      _stub_module(e.name)
+  else:
+    raise RuntimeError("too many missing modules")
   app["params"] = Params() if HAS_PARAMS else None
   app["hb_last"] = {"ok": None, "msg": "demo", "ts": 0}
   app["realtime_broker"] = None

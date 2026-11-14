@@ -2,7 +2,7 @@
 
 **[데모 열기 · Open the demo](https://demopilot.joongyu.co.kr/)**
 
-[ajouatom/openpilot](https://github.com/ajouatom/openpilot) `carrot-wip` 브랜치의 Carrot Web을 기기 없이 브라우저에서 실행하는 비공식 데모입니다.
+[ajouatom/openpilot](https://github.com/ajouatom/openpilot) `joongyu01/carrot-wip-dev` 브랜치(carrot-wip + 준규 개발분)의 Carrot Web을 기기 없이 브라우저에서 실행하는 비공식 데모입니다.
 화면을 흉내 내 다시 만든 것이 아니라, **upstream 코드를 그대로** 돌립니다.
 
 - 웹 UI: upstream `selfdrive/carrot/web`을 upstream 빌드 스크립트(`npm run build`)로 빌드한 결과물
@@ -12,7 +12,7 @@
 
 ## 자동 업데이트
 
-GitHub Actions가 15분마다 `carrot-wip`와 `joongyu01/carrot-wip-dev`의 최신 커밋을 확인합니다. GitHub 예약 실행은 지연될 수 있습니다. 즉시 갱신하려면 Actions → Deploy live demo → Run workflow를 실행합니다. 바뀌었으면 다음 순서로 진행합니다.
+GitHub Actions가 15분마다 `joongyu01/carrot-wip-dev`의 최신 커밋을 확인합니다(메인과 `/dev/` 모두 이 브랜치). GitHub 예약 실행은 지연될 수 있습니다. 즉시 갱신하려면 Actions → Deploy live demo → Run workflow를 실행합니다. 바뀌었으면 다음 순서로 진행합니다.
 
 1. upstream에서 웹과 서버에 필요한 경로만 sparse clone
 2. 웹 빌드 → 사이트 조립 (`tools/build_site.py`)
@@ -28,8 +28,8 @@ GitHub Actions가 15분마다 `carrot-wip`와 `joongyu01/carrot-wip-dev`의 최�
 
 | 경로 | 브랜치 |
 |---|---|
-| [`/`](https://demopilot.joongyu.co.kr/) | `ajouatom/openpilot` `carrot-wip` |
-| [`/dev/`](https://demopilot.joongyu.co.kr/dev/) | `ajouatom/openpilot` `joongyu01/carrot-wip-dev` (순정 내비 카메라 종류 정책·감속 중지 요청·구간 평균·깜빡이 레버) |
+| [`/`](https://demopilot.joongyu.co.kr/) | `ajouatom/openpilot` `joongyu01/carrot-wip-dev` (설정 카탈로그 전체: Joongyu Lab 그룹 포함) |
+| [`/dev/`](https://demopilot.joongyu.co.kr/dev/) | `ajouatom/openpilot` `joongyu01/carrot-wip-dev` (계기판 연동 화면이 여는 경로) |
 
 - 미리보기도 빌드 → 백엔드 검사 → 브라우저 검사를 통과해야 배포되고, 배포한 커밋은 `state/preview.json`에 남습니다.
 - 브라우저 저장소가 분리되어(IndexedDB `/data-dev`) 미리보기에서 바꾼 값이 메인 데모에 섞이지 않습니다.
@@ -104,4 +104,4 @@ python tools/serve.py 8765   # http://localhost:8765/Pilot_Demo/
 
 ---
 
-**English** — An unofficial live demo of Carrot Web from `ajouatom/openpilot@carrot-wip`. The upstream web build runs unchanged, and the upstream aiohttp server runs in the browser via Pyodide, so every `/api/*` call is served by the real handler. GitHub Actions checks both tracked branches every 15 minutes, rebuilds, tests in Chromium, and deploys only when the tests pass. Values stay in your browser (IndexedDB), and outbound network is blocked inside the demo server.
+**English** — An unofficial live demo of Carrot Web from `ajouatom/openpilot@joongyu01/carrot-wip-dev` (carrot-wip plus the owner's work). The upstream web build runs unchanged, and the upstream aiohttp server runs in the browser via Pyodide, so every `/api/*` call is served by the real handler. GitHub Actions checks both tracked branches every 15 minutes, rebuilds, tests in Chromium, and deploys only when the tests pass. Values stay in your browser (IndexedDB), and outbound network is blocked inside the demo server.

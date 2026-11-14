@@ -26,7 +26,7 @@ concurrency:
 
 env:
   UPSTREAM_REPO: ajouatom/openpilot
-  UPSTREAM_BRANCH: carrot-wip
+  UPSTREAM_BRANCH: joongyu01/carrot-wip-dev  # main demo pinned to the owner's branch (11-14)
   PREVIEW_REPO: ajouatom/openpilot
   PREVIEW_BRANCH: joongyu01/carrot-wip-dev
   PREVIEW_PATH: dev
