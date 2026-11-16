@@ -300,6 +300,7 @@ def main() -> None:
   with open(os.path.join(out, "index.html"), "w", encoding="utf-8", newline="") as f:
     f.write(loader
             .replace("__DEMO_META__", json.dumps(meta, ensure_ascii=False).replace("</", "<\\/"))
+            .replace("__DEMO_BRANCH__", meta["branch"].replace("<", ""))
             .replace("__DEMO_VERSION__", (meta["commit"] or "dev")[:12] + "-" + (meta["demoCommit"] or "local")[:12]))
   shutil.copy(os.path.join(DEMO_SRC, "404.html"), os.path.join(out, "404.html"))
   open(os.path.join(out, ".nojekyll"), "w").close()

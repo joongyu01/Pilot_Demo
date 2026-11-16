@@ -155,6 +155,12 @@ def boot() -> dict:
       _stub_module(e.name)
   else:
     raise RuntimeError("too many missing modules")
+  try:
+    import demo_bluetooth
+    demo_bluetooth.install(app)
+    bluetooth = "demo radio"
+  except Exception as e:  # an upstream Bluetooth change must not take the rest of the demo down
+    bluetooth = f"unavailable: {type(e).__name__}: {e}"
   app["params"] = Params() if HAS_PARAMS else None
   app["hb_last"] = {"ok": None, "msg": "demo", "ts": 0}
   app["realtime_broker"] = None
@@ -164,7 +170,7 @@ def boot() -> dict:
   app["realtime_raw_hub"] = None
   app.freeze()
   APP = app
-  return {"stubbed": STUBBED, "has_params": HAS_PARAMS}
+  return {"stubbed": STUBBED, "has_params": HAS_PARAMS, "bluetooth": bluetooth}
 
 
 def _make_request(method: str, path: str, headers: dict, payload):

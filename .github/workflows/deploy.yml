@@ -1,12 +1,17 @@
 name: Deploy live demo
 
-# Every 15 minutes: if either tracked branch has moved, rebuild the demo from the
-# new tip, test it in a real browser, and publish it. A failing build or test
-# leaves the previous good demo online.
+# If any tracked branch has moved, rebuild the demo from the new tips, test them in a
+# real browser, and publish. A failing build or test leaves the previous good demo
+# online. The schedule asks every 15 minutes, but GitHub drops most scheduled runs
+# (11-16: about one every 4-8 hours), so pushes to the owner's branch also dispatch
+# this workflow (`gh workflow run deploy.yml -R joongyu01/Pilot_Demo`).
 #
-# Branch preview: the same build of PREVIEW_BRANCH is published under
-# /PREVIEW_PATH/ next to the main demo (own browser storage, see
-# demo/backend-worker.js). If the branch is gone, the preview is skipped.
+# Targets, each with its own browser storage (demo/backend-worker.js):
+#   /               UPSTREAM_BRANCH
+#   /PREVIEW_PATH/  PREVIEW_BRANCH (the cluster page opens this one)
+#   /WIP_PATH/      WIP_BRANCH
+# A sub-path target whose branch is gone is skipped. Runs on other refs of this
+# repository build and test only; publishing is for main.
 on:
   schedule:
     - cron: "7,22,37,52 * * * *"
@@ -30,6 +35,9 @@ env:
   PREVIEW_REPO: ajouatom/openpilot
   PREVIEW_BRANCH: joongyu01/carrot-wip-dev
   PREVIEW_PATH: dev
+  WIP_REPO: ajouatom/openpilot
+  WIP_BRANCH: carrot-wip
+  WIP_PATH: wip
 
 jobs:
   check:
@@ -38,6 +46,7 @@ jobs:
       build: ${{ steps.cmp.outputs.build }}
       upstream: ${{ steps.cmp.outputs.upstream }}
       preview: ${{ steps.cmp.outputs.preview }}
+      wip: ${{ steps.cmp.outputs.wip }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -48,10 +57,13 @@ jobs:
           deployed=$(jq -r '.commit // ""' state/upstream.json 2>/dev/null || true)
           preview=$(git ls-remote "https://github.com/${PREVIEW_REPO}.git" "refs/heads/${PREVIEW_BRANCH}" | cut -f1)
           preview_deployed=$(jq -r '.commit // ""' state/preview.json 2>/dev/null || true)
+          wip=$(git ls-remote "https://github.com/${WIP_REPO}.git" "refs/heads/${WIP_BRANCH}" | cut -f1)
+          wip_deployed=$(jq -r '.commit // ""' state/wip.json 2>/dev/null || true)
           echo "upstream=${upstream}" >> "$GITHUB_OUTPUT"
           echo "preview=${preview}" >> "$GITHUB_OUTPUT"
-          echo "upstream ${upstream:0:8}, deployed ${deployed:0:8}; preview ${preview:0:8}, deployed ${preview_deployed:0:8}"
-          if [ "${{ github.event_name }}" != "schedule" ] || [ "$upstream" != "$deployed" ] || [ "$preview" != "$preview_deployed" ]; then
+          echo "wip=${wip}" >> "$GITHUB_OUTPUT"
+          echo "upstream ${upstream:0:8}, deployed ${deployed:0:8}; preview ${preview:0:8}, deployed ${preview_deployed:0:8}; wip ${wip:0:8}, deployed ${wip_deployed:0:8}"
+          if [ "${{ github.event_name }}" != "schedule" ] || [ "$upstream" != "$deployed" ] || [ "$preview" != "$preview_deployed" ] || [ "$wip" != "$wip_deployed" ]; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           else
             echo "build=false" >> "$GITHUB_OUTPUT"
@@ -61,38 +73,15 @@ jobs:
     needs: check
     if: needs.check.outputs.build == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     outputs:
-      upstream: ${{ steps.fetch.outputs.sha }}
+      upstream: ${{ steps.main.outputs.sha }}
       preview: ${{ steps.preview.outputs.sha }}
+      wip: ${{ steps.wip.outputs.sha }}
+    env:
+      DEMO_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v7
-
-      - name: Fetch upstream (only what the web and its server need)
-        id: fetch
-        run: |
-          git clone --filter=blob:none --no-checkout --depth 1 --branch "$UPSTREAM_BRANCH" \
-            "https://github.com/${UPSTREAM_REPO}.git" upstream
-          cd upstream
-          git sparse-checkout set --no-cone \
-            '/LICENSE' \
-            '/openpilot/__init__.py' \
-            '/openpilot/common/' \
-            '/openpilot/selfdrive/__init__.py' \
-            '/openpilot/selfdrive/carrot/' \
-            '/openpilot/selfdrive/carrot_settings.json' \
-            '/openpilot/selfdrive/ui/translations/' \
-            '/openpilot/selfdrive/assets/' \
-            '!/openpilot/selfdrive/assets/fonts/' \
-            '!/openpilot/selfdrive/assets/training/' \
-            '/opendbc_repo/opendbc/'
-          git checkout
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          {
-            echo "UPSTREAM_SHA=$(git rev-parse HEAD)"
-            echo "UPSTREAM_DATE=$(git log -1 --format=%cI)"
-            echo "UPSTREAM_SUBJECT=$(git log -1 --format=%s)"
-          } >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v7
         with:
@@ -102,62 +91,36 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build Carrot Web (upstream build script)
-        working-directory: upstream/openpilot/selfdrive/carrot/web
-        run: npm ci --no-audit --no-fund && npm run build
-
-      - name: Assemble site
+      - name: Tools and repository checks
         run: |
           pip install --quiet aiohttp numpy pycapnp
-          python tools/build_site.py --upstream upstream --out _site
-        env:
-          DEMO_SHA: ${{ github.sha }}
-
-      - name: Backend checks (upstream server code, native)
-        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
           node tests/persist.mjs
           node tests/cluster-bridge.mjs
           python tests/cluster_fields.py
-          python tools/smoke_backend.py _site/_demo/backend.zip
 
-      - name: Browser checks (Pyodide in Chromium)
+      # Each step: sparse clone of the tip, upstream web build, site assembly,
+      # native backend checks, browser checks (tools/build_target.sh).
+      - name: Main demo (/)
+        id: main
         run: |
-          npm ci --no-audit --no-fund
-          npx playwright install --with-deps chromium
-          node tests/e2e.mjs _site
-          DEMO_TEST_PREFIX=/ node tests/e2e.mjs _site
+          sha=$(bash tools/build_target.sh "$UPSTREAM_REPO" "$UPSTREAM_BRANCH" _site /Pilot_Demo/ /)
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
-      - name: Branch preview (same pipeline, published under /PREVIEW_PATH/)
+      - name: Branch preview (/PREVIEW_PATH/)
         id: preview
         if: needs.check.outputs.preview != ''
         run: |
-          git clone --filter=blob:none --no-checkout --depth 1 --branch "$PREVIEW_BRANCH" \
-            "https://github.com/${PREVIEW_REPO}.git" preview-upstream
-          cd preview-upstream
-          git sparse-checkout set --no-cone \
-            '/LICENSE' \
-            '/openpilot/__init__.py' \
-            '/openpilot/common/' \
-            '/openpilot/selfdrive/__init__.py' \
-            '/openpilot/selfdrive/carrot/' \
-            '/openpilot/selfdrive/carrot_settings.json' \
-            '/openpilot/selfdrive/ui/translations/' \
-            '/openpilot/selfdrive/assets/' \
-            '!/openpilot/selfdrive/assets/fonts/' \
-            '!/openpilot/selfdrive/assets/training/' \
-            '/opendbc_repo/opendbc/'
-          git checkout
-          sha=$(git rev-parse HEAD)
-          (cd openpilot/selfdrive/carrot/web && npm ci --no-audit --no-fund && npm run build)
-          cd ..
-          UPSTREAM_REPO="$PREVIEW_REPO" UPSTREAM_BRANCH="$PREVIEW_BRANCH" UPSTREAM_SHA="$sha" UPSTREAM_DATE="$(git -C preview-upstream log -1 --format=%cI)" \
-            UPSTREAM_SUBJECT="$(git -C preview-upstream log -1 --format=%s)" \
-            python tools/build_site.py --upstream preview-upstream --out "_site/${PREVIEW_PATH}"
-          python tools/smoke_backend.py "_site/${PREVIEW_PATH}/_demo/backend.zip"
-          DEMO_TEST_PREFIX="/${PREVIEW_PATH}/" node tests/e2e.mjs "_site/${PREVIEW_PATH}"
+          sha=$(bash tools/build_target.sh "$PREVIEW_REPO" "$PREVIEW_BRANCH" "_site/${PREVIEW_PATH}" "/${PREVIEW_PATH}/")
           echo "sha=${sha}" >> "$GITHUB_OUTPUT"
-        env:
-          DEMO_SHA: ${{ github.sha }}
+
+      - name: carrot-wip (/WIP_PATH/)
+        id: wip
+        if: needs.check.outputs.wip != ''
+        run: |
+          sha=$(bash tools/build_target.sh "$WIP_REPO" "$WIP_BRANCH" "_site/${WIP_PATH}" "/${WIP_PATH}/")
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
@@ -166,6 +129,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -200,9 +164,15 @@ jobs:
           elif [ "$preview" != "$(jq -r '.commit // ""' state/preview.json 2>/dev/null || true)" ]; then
             jq -n --arg commit "$preview" --arg repo "$PREVIEW_REPO" --arg branch "$PREVIEW_BRANCH" --arg path "$PREVIEW_PATH" --arg at "$now" '{repo: $repo, branch: $branch, path: $path, commit: $commit, deployedAt: $at}' > state/preview.json
           fi
+          wip="${{ needs.build.outputs.wip }}"
+          if [ -z "$wip" ]; then
+            rm -f state/wip.json
+          elif [ "$wip" != "$(jq -r '.commit // ""' state/wip.json 2>/dev/null || true)" ]; then
+            jq -n --arg commit "$wip" --arg repo "$WIP_REPO" --arg branch "$WIP_BRANCH" --arg path "$WIP_PATH" --arg at "$now" '{repo: $repo, branch: $branch, path: $path, commit: $commit, deployedAt: $at}' > state/wip.json
+          fi
           git add -A state
           git diff --cached --quiet && { echo "unchanged"; exit 0; }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Track ${UPSTREAM_BRANCH} ${sha:0:8}${preview:+, preview ${preview:0:8}}"
+          git commit -m "Track ${UPSTREAM_BRANCH} ${sha:0:8}${preview:+, preview ${preview:0:8}}${wip:+, ${WIP_BRANCH} ${wip:0:8}}"
           git push

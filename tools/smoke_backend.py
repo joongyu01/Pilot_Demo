@@ -45,6 +45,67 @@ async def call(method: str, path: str, body=None):
   return r["status"], payload, text
 
 
+def soft(cond: bool, label: str) -> None:
+  # The Bluetooth dialog is an extra: if upstream changes it, warn in the run summary
+  # but keep deploying the rest of the latest code.
+  print(("ok   " if cond else "::warning::bluetooth demo: ") + label)
+
+
+async def bluetooth() -> None:
+  remote, phone, board = "C0:DE:00:00:00:01", "C0:DE:00:00:00:03", "C0:DE:00:00:00:B1"
+
+  async def state():
+    return (await call("GET", "/api/bluetooth"))[1] or {}
+
+  async def until(pred, seconds=5.0):
+    for _ in range(int(seconds / 0.1)):
+      s = await state()
+      if pred(s):
+        return s
+      await asyncio.sleep(0.1)
+    return await state()
+
+  def device(s, mac):
+    return next((d for d in s.get("devices", []) if d["address"] == mac), {})
+
+  s = await state()
+  soft(s.get("available") and s.get("radioEnabled") and s["runtime"]["stationary"], "dialog is ready to configure")
+  status, _, text = await call("POST", "/api/bluetooth/scan", {})
+  s = await state()
+  soft(status == 200 and {"Yiser-J6", "Carrot-B1"} <= {d["name"] for d in s.get("devices", [])}, f"scan lists sample devices {text[:80]}")
+
+  await call("POST", "/api/bluetooth/pair", {"address": remote})
+  s = await until(lambda s: device(s, remote).get("connected"))
+  soft(device(s, remote).get("paired") and device(s, remote).get("connected"), "remote pairs and connects")
+  mapping = s.get("defaults", {})
+  status, _, text = await call("POST", "/api/bluetooth/device-config", {"address": remote, "device": {
+    "name": "Yiser-J6", "profile": "yiser-j6", "enabled": True, "mapping": mapping}})
+  s = await state()
+  soft(status == 200 and s["config"]["devices"].get(remote, {}).get("mapping") == mapping, f"mapping saves {text[:80]}")
+  soft(remote in s["runtime"].get("grabbed", []), "enabled mapping shows the remote as captured")
+  status, _, _ = await call("POST", "/api/bluetooth/learn", {"address": remote, "enabled": True})
+  soft(status == 200 and (await state())["runtime"].get("learning", {}).get("address") == remote, "key test mode starts")
+
+  await call("POST", "/api/bluetooth/pair", {"address": phone})
+  s = await until(lambda s: s.get("prompt"))
+  prompt = s.get("prompt") or {}
+  soft(prompt.get("kind") == "RequestConfirmation", "phone asks for a pairing confirmation")
+  await call("POST", "/api/bluetooth/answer", {"id": prompt.get("id"), "value": True})
+  s = await until(lambda s: device(s, phone).get("paired"))
+  soft(device(s, phone).get("paired") and not s.get("prompt"), "confirming the prompt pairs the phone")
+
+  status, _, _ = await call("POST", "/api/bluetooth/b1-register", {"address": board})
+  s = await state()
+  soft(status == 200 and (s.get("b1") or {}).get("address") == board, "Carrot-B1 registers for auto-connect")
+
+  await call("POST", "/api/bluetooth/radio", {"enabled": False})
+  s = await state()
+  soft(not s.get("radioEnabled") and not s.get("available"), "Bluetooth off makes the adapter unavailable")
+  await call("POST", "/api/bluetooth/radio", {"enabled": True})
+  s = await state()
+  soft(s.get("radioEnabled") and device(s, remote).get("paired"), "Bluetooth on keeps paired devices")
+
+
 async def main() -> None:
   info = demo_backend.boot()
   print("stubbed:", ", ".join(info["stubbed"]))
@@ -80,6 +141,12 @@ async def main() -> None:
 
   status, _, _ = await call("GET", "/api/nope")
   check(status == 404, "unknown route is 404")
+
+  print("bluetooth:", info.get("bluetooth"))
+  try:
+    await bluetooth()
+  except Exception as e:
+    soft(False, f"bluetooth flow raised {type(e).__name__}: {e}")
 
   if failures:
     print(f"\n{len(failures)} check(s) failed")

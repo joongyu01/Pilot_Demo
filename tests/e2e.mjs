@@ -40,6 +40,7 @@ function check(cond, label) {
   console.log(`${cond ? "ok  " : "FAIL"} ${label}`);
   if (!cond) failures.push(label);
 }
+const soft = (cond, label) => console.log(cond ? `ok   ${label}` : `::warning::${label}`);
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1024, height: 700 }, locale: "ko-KR" });
@@ -161,6 +162,20 @@ try {
   await page.click("#btnTools");
   await page.waitForTimeout(1500);
   check(outbound.length === 0, `no third-party requests (${outbound.slice(0, 3).join(", ")})`);
+
+  // Bluetooth dialog on the demo radio: a scan lists the sample devices. Soft, so an upstream
+  // change to the dialog warns in the run summary without holding back the rest of the deploy.
+  try {
+    await page.click("#btnToolsBluetooth");
+    const dialog = page.locator("dialog.carrot-bt-dialog");
+    await dialog.locator("button", { hasText: "장치 검색" }).click({ timeout: 10_000 });
+    await dialog.getByText("Yiser-J6").first().waitFor({ timeout: 10_000 });
+    const pairs = await dialog.locator("button", { hasText: "페어링" }).count();
+    soft(pairs >= 2, `Bluetooth dialog lists the sample devices (${pairs} pair buttons)`);
+    await dialog.locator("button", { hasText: "닫기" }).click();
+  } catch (err) {
+    soft(false, `Bluetooth dialog: ${String(err.message).split("\n")[0]}`);
+  }
 } catch (err) {
   check(false, `unexpected: ${err.message}`);
 } finally {

@@ -327,7 +327,7 @@
     runtime: "Python 런타임 내려받는 중 · Loading Python runtime",
     packages: "서버 패키지 준비 중 · Loading server packages",
     storage: "저장된 데모 설정 불러오는 중 · Restoring saved demo state",
-    backend: "carrot-wip-dev 서버 코드 내려받는 중 · Fetching carrot-wip-dev server code",
+    backend: `${META.branch || "upstream"} 서버 코드 내려받는 중 · Fetching ${META.branch || "upstream"} server code`,
     server: "Carrot 서버 부팅 중 · Starting Carrot server",
     render: "화면 여는 중 · Opening Carrot Web",
   };

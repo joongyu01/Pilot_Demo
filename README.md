@@ -2,7 +2,7 @@
 
 **[데모 열기 · Open the demo](https://demopilot.joongyu.co.kr/)**
 
-[ajouatom/openpilot](https://github.com/ajouatom/openpilot) `joongyu01/carrot-wip-dev` 브랜치(carrot-wip + 준규 개발분)의 Carrot Web을 기기 없이 브라우저에서 실행하는 비공식 데모입니다.
+[ajouatom/openpilot](https://github.com/ajouatom/openpilot) `joongyu01/carrot-wip-dev` 브랜치(carrot-wip + 준규 개발분)와 `carrot-wip` 브랜치([`/wip/`](https://demopilot.joongyu.co.kr/wip/))의 Carrot Web을 기기 없이 브라우저에서 실행하는 비공식 데모입니다.
 화면을 흉내 내 다시 만든 것이 아니라, **upstream 코드를 그대로** 돌립니다.
 
 - 웹 UI: upstream `selfdrive/carrot/web`을 upstream 빌드 스크립트(`npm run build`)로 빌드한 결과물
@@ -12,7 +12,13 @@
 
 ## 자동 업데이트
 
-GitHub Actions가 15분마다 `joongyu01/carrot-wip-dev`의 최신 커밋을 확인합니다(메인과 `/dev/` 모두 이 브랜치). GitHub 예약 실행은 지연될 수 있습니다. 즉시 갱신하려면 Actions → Deploy live demo → Run workflow를 실행합니다. 바뀌었으면 다음 순서로 진행합니다.
+GitHub Actions가 추적하는 세 경로의 브랜치 최신 커밋을 확인하고, 하나라도 바뀌었으면 전부 다시 빌드합니다. 예약 실행은 15분 간격으로 걸어 두었지만 GitHub가 대부분 건너뜁니다(11-16 기준 실제로는 4~8시간에 한 번). 그래서 `joongyu01/carrot-wip-dev`에 push할 때마다 배포를 바로 요청합니다.
+
+```bash
+gh workflow run deploy.yml -R joongyu01/Pilot_Demo
+```
+
+웹에서는 Actions → Deploy live demo → Run workflow와 같습니다. 각 경로는 다음 순서로 진행합니다(`tools/build_target.sh`).
 
 1. upstream에서 웹과 서버에 필요한 경로만 sparse clone
 2. 웹 빌드 → 사이트 조립 (`tools/build_site.py`)
@@ -20,7 +26,7 @@ GitHub Actions가 15분마다 `joongyu01/carrot-wip-dev`의 최신 커밋을 확
 4. 브라우저 검사: Chromium에서 데모를 실제로 띄워 인트로, 설정, 저장, 경로 누수 확인 (`tests/e2e.mjs`)
 5. 통과하면 GitHub Pages에 배포하고, 배포한 upstream 커밋을 `state/upstream.json`에 기록
 
-검사에 실패하면 배포하지 않습니다. 직전 정상 버전이 계속 서비스되고, 실패한 실행은 Actions 탭에 남습니다.
+검사에 실패하면 배포하지 않습니다. 직전 정상 버전이 계속 서비스되고, 실패한 실행은 Actions 탭에 남습니다. 블루투스 화면 검사만은 예외로, 실패하면 실행 요약에 경고를 남기고 나머지 최신 코드는 배포합니다.
 
 ## 브랜치 미리보기
 
@@ -30,10 +36,11 @@ GitHub Actions가 15분마다 `joongyu01/carrot-wip-dev`의 최신 커밋을 확
 |---|---|
 | [`/`](https://demopilot.joongyu.co.kr/) | `ajouatom/openpilot` `joongyu01/carrot-wip-dev` (설정 카탈로그 전체: Joongyu Lab 그룹 포함) |
 | [`/dev/`](https://demopilot.joongyu.co.kr/dev/) | `ajouatom/openpilot` `joongyu01/carrot-wip-dev` (계기판 연동 화면이 여는 경로) |
+| [`/wip/`](https://demopilot.joongyu.co.kr/wip/) | `ajouatom/openpilot` `carrot-wip` (주인 브랜치 최신) |
 
-- 미리보기도 빌드 → 백엔드 검사 → 브라우저 검사를 통과해야 배포되고, 배포한 커밋은 `state/preview.json`에 남습니다.
-- 브라우저 저장소가 분리되어(IndexedDB `/data-dev`) 미리보기에서 바꾼 값이 메인 데모에 섞이지 않습니다.
-- 브랜치가 삭제되면(병합 후 등) 미리보기는 건너뜁니다. 다른 브랜치로 바꾸려면 `PREVIEW_BRANCH`·`PREVIEW_PATH`만 고칩니다.
+- 하위 경로도 빌드 → 백엔드 검사 → 브라우저 검사를 통과해야 배포되고, 배포한 커밋은 `state/preview.json`·`state/wip.json`에 남습니다.
+- 브라우저 저장소가 경로마다 분리되어(IndexedDB `/data-dev`, `/data-wip`) 한 경로에서 바꾼 값이 다른 경로에 섞이지 않습니다.
+- 브랜치가 삭제되면(병합 후 등) 그 경로는 건너뜁니다. 다른 브랜치로 바꾸려면 `deploy.yml`의 `*_BRANCH`·`*_PATH`만 고칩니다.
 
 ## 계기판 함께 보기
 
@@ -60,6 +67,7 @@ GitHub Actions가 15분마다 `joongyu01/carrot-wip-dev`의 최신 커밋을 확
 | 동작함 | 기기가 있어야 함 (데모에서는 비어 있음) |
 |---|---|
 | 설정 탐색·검색·값 변경·기본값 | 주행 화면의 실시간 영상·HUD 값 |
+| 도구 → 블루투스 리모컨 화면 (데모 어댑터: 검색·페어링·확인 창·매핑 저장·키 시험 모드·B1 등록·켜기/끄기) | 실제 블루투스 연결, 리모컨 버튼 입력 |
 | 차량 선택 (opendbc 차량 목록) | 대시캠·화면녹화·로그 |
 | 첫 설치 인트로 마법사 | 터미널 |
 | 즐겨찾기·프로필·변경 이력 | git·재부팅 같은 기기 명령의 실제 효과 |
@@ -89,7 +97,9 @@ python tools/serve.py 8765   # http://localhost:8765/Pilot_Demo/
 | `demo/boot.js` | 페이지 쪽. `/api/*`를 백엔드 Worker로 보내고, 루트 절대경로를 Pages 하위 경로로 바꾸며, 서버가 렌더링한 앱을 띄움 |
 | `demo/backend-worker.js` | Pyodide Worker. upstream 서버 코드를 풀고, IndexedDB에 상태를 저장 |
 | `demo/backend/demo_backend.py` | upstream 라우트를 등록하고 요청을 실제 핸들러로 전달. 기기 전용 모듈만 대체 |
+| `demo/backend/demo_bluetooth.py` | 블루투스 화면용 데모 어댑터. upstream `Bluez` 클래스는 그대로 쓰고 D-Bus 호출만 메모리 속 장치 4개(Yiser-J6, BT Keyboard, Phone, Carrot-B1)로 응답. 정차·크루즈 해제 상태로 보고하며 차량 명령 경로는 없음 |
 | `demo/backend/params_pyx.py` | `params_keys.h`를 읽는 순수 Python Params (타입·기본값·캐스팅 규칙은 `params_pyx.pyx`와 동일) |
+| `tools/build_target.sh` | 경로 하나 빌드: 브랜치 tip sparse clone → 웹 빌드 → 사이트 조립 → 백엔드·브라우저 검사 |
 | `tools/build_site.py` | 사이트 조립. 서버 패키지의 import 폐포만 `backend.zip`에 담고, 공유 스키마(`shared/schema.json`)를 만듦 |
 | `demo/share.js` | 설정 불러오기(web) / 내 설정 올리기 화면 |
 | `tools/share_settings.py` | 공유 봇의 검사기. 이슈 양식 → 프리셋 JSON |
@@ -104,4 +114,4 @@ python tools/serve.py 8765   # http://localhost:8765/Pilot_Demo/
 
 ---
 
-**English** — An unofficial live demo of Carrot Web from `ajouatom/openpilot@joongyu01/carrot-wip-dev` (carrot-wip plus the owner's work). The upstream web build runs unchanged, and the upstream aiohttp server runs in the browser via Pyodide, so every `/api/*` call is served by the real handler. GitHub Actions checks both tracked branches every 15 minutes, rebuilds, tests in Chromium, and deploys only when the tests pass. Values stay in your browser (IndexedDB), and outbound network is blocked inside the demo server.
+**English** — An unofficial live demo of Carrot Web from `ajouatom/openpilot@joongyu01/carrot-wip-dev` (carrot-wip plus the owner's work), with `carrot-wip` itself under `/wip/`. The upstream web build runs unchanged, and the upstream aiohttp server runs in the browser via Pyodide, so every `/api/*` call is served by the real handler. The Bluetooth remote dialog runs against an in-memory demo adapter (no radio, no vehicle path). GitHub Actions rebuilds when a tracked branch moves (pushes to the owner's branch dispatch it; the 15-minute schedule is mostly dropped by GitHub), tests in Chromium, and deploys only when the tests pass. Values stay in your browser (IndexedDB), and outbound network is blocked inside the demo server.
