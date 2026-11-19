@@ -104,8 +104,14 @@ try {
 
   await api("/api/intro/complete", {});
   await api("/api/param_set", { name: "AutoEngage", value: 2, source: "e2e" });
+  // The wide layout opens the first menu group, which is not always the one holding
+  // AutoEngage (36ba0e92 put Joongyu Lab first), so open that group from the menu tree.
+  const engageGroup = (snap.json?.settings?.categories || []).flatMap((c) => c.groups || [])
+    .find((g) => (g.sections || []).some((s) => (s.items || []).includes("AutoEngage")))?.id;
+  check(Boolean(engageGroup), `settings menu has a group with AutoEngage (${engageGroup})`);
   await boot();
   await page.click("#btnSetting");
+  await page.click(`#groupList button[data-group="${engageGroup}"]`);
   await page.waitForFunction(() => document.body.innerText.includes("AutoEngage"), null, { timeout: 30_000 });
   check(true, "settings page lists upstream params");
 
