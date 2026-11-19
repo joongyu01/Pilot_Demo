@@ -150,7 +150,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Tip of main, not the run's commit: an earlier queued run may have recorded since.
       - uses: actions/checkout@v7
+        with:
+          ref: main
       - run: |
           now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           mkdir -p state
